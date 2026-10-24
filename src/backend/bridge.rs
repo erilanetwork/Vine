@@ -215,8 +215,12 @@ impl BackendBridge {
                             "vine.server.initial_connect_failed",
                             &[&requested_server],
                         );
-                        crate::client::kick_reason(locale.as_deref(), &reason, self.client_version)
-                            .to_string()
+                        crate::utils::client::kick_reason(
+                            locale.as_deref(),
+                            &reason,
+                            self.client_version,
+                        )
+                        .to_string()
                     }
                 };
                 send_best_effort(
@@ -387,13 +391,13 @@ pub(super) fn disconnect_packet(
     let encoded = match phase {
         Phase::Login => encode_packet(
             &LoginDisconnect {
-                reason_json: crate::client::kick_reason(locale, reason, version).to_string(),
+                reason_json: crate::utils::client::kick_reason(locale, reason, version).to_string(),
             },
             version,
         ),
         Phase::Config => encode_packet(
             &ConfigDisconnect {
-                reason: crate::client::kick_reason(locale, reason, version),
+                reason: crate::utils::client::kick_reason(locale, reason, version),
             },
             version,
         ),

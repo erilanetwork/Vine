@@ -15,7 +15,6 @@ use tokio::sync::{broadcast, mpsc};
 use tokio::time::timeout;
 
 use vine::config::{Config, ForwardingMode};
-use vine::console::Console;
 use vine::protocol::packets::handshake::{Handshake, HandshakeIntent};
 use vine::protocol::packets::login::{LoginDisconnect, LoginStart};
 use vine::protocol::packets::play::ClientboundPluginMessage;
@@ -25,6 +24,7 @@ use vine::protocol::{
     PacketKind, PacketReader, PacketWriter, ProtocolVersion, decode_packet, encode_packet,
 };
 use vine::proxy::ProxyServer;
+use vine::utils::console::Console;
 
 const V1_8: ProtocolVersion = ProtocolVersion::V1_8;
 const WAIT: Duration = Duration::from_secs(10);

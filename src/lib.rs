@@ -1,9 +1,10 @@
 pub mod backend;
-pub mod client;
-pub mod console;
 pub mod metrics;
 pub mod proxy;
-pub mod status;
+pub mod utils;
+
+// the old paths keep working for anything that used them before the move
+pub use utils::{client, console, status};
 
 pub use vine_auth as auth;
 pub use vine_config as config;

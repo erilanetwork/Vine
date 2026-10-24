@@ -8,7 +8,7 @@ use vine::proxy::ProxyServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let console = vine::console::init();
+    let console = vine::utils::console::init();
 
     // `--init` writes the default files and exits without starting the proxy
     let mut args = std::env::args().skip(1).peekable();

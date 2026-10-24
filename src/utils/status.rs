@@ -173,7 +173,7 @@ mod tests {
     fn test_status_response_with_icon_and_virtual_hosts() {
         let temp_icon_path = std::env::temp_dir().join("vine_test_status_icon.png");
         let mut png_bytes = Vec::new();
-        png_bytes.extend_from_slice(&crate::status::icon::PNG_SIGNATURE);
+        png_bytes.extend_from_slice(&crate::utils::status::icon::PNG_SIGNATURE);
         png_bytes.extend_from_slice(&13u32.to_be_bytes());
         png_bytes.extend_from_slice(b"IHDR");
         png_bytes.extend_from_slice(&64u32.to_be_bytes());

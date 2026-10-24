@@ -23,7 +23,7 @@ For testing against a real backend, a [Pumpkin](https://github.com/Pumpkin-MC/Pu
 
 | Path | What lives there |
 | --- | --- |
-| `src/` | The proxy binary: client handling, backend connections, server switching, console |
+| `src/` | The proxy binary: backend connections and server switching, with client handling, the server list and the console in `src/utils` |
 | `crates/vine-protocol` | Packet definitions and the wire format for every supported version |
 | `crates/vine-network` | Socket setup, PROXY protocol and network config |
 | `crates/vine-auth` | Mojang session authentication |

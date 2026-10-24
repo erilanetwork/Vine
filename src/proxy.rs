@@ -9,10 +9,10 @@ use tracing::{debug, error, info, warn};
 
 use crate::backend::forwarding::ForwardingHelper;
 use crate::backend::{Router, spawn_health_checks};
-use crate::client::ClientHandler;
-use crate::console::Console;
 use crate::network;
-use crate::status::{StatusHandler, StatusIconManager};
+use crate::utils::client::ClientHandler;
+use crate::utils::console::Console;
+use crate::utils::status::{StatusHandler, StatusIconManager};
 use vine_auth::{Authenticator, KeyStore};
 use vine_config::{Config, ForwardingMode, SharedConfig};
 use vine_i18n::translate;

@@ -10,7 +10,7 @@ use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
 use crate::backend::{BackendBridge, Router};
-use crate::status::StatusHandler;
+use crate::utils::status::StatusHandler;
 use vine_auth::{
     AuthError, AuthenticatedPlayer, Authenticator, IdentifiedKey, KeyRevision, KeyStore,
     verify_signed_token,
