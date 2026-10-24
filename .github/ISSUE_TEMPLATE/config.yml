@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/erilanetwork/Vine/security/advisories/new
+    about: Report security issues privately, never in a public issue.
+  - name: Pumpkin
+    url: https://github.com/Pumpkin-MC/Pumpkin/issues
+    about: Problems with a Pumpkin backend itself belong in the Pumpkin repository.

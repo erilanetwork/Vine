@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in Vine does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please search the existing issues first, and remove secrets such as `vine-forwarding.key` or backend `secret` values from anything you paste.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start Vine with the config below
+        2. Join with a 1.21.4 client
+        3. Run /server survival
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Vine version
+      description: A release tag, `nightly`, or a commit hash when built from source.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run Vine
+      options:
+        - Release binary
+        - Docker
+        - Pterodactyl
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, Windows 11, macOS 15...
+  - type: input
+    id: client
+    attributes:
+      label: Minecraft client version
+      placeholder: 1.21.4
+  - type: input
+    id: backend
+    attributes:
+      label: Backend software and forwarding mode
+      placeholder: Pumpkin with vine forwarding, vanilla 1.20.1 with none...
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config
+      description: The parts of `vine.toml` that matter for this bug.
+      render: toml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Console output around the problem. Running with `RUST_LOG=debug` gives more detail.
+      render: text
