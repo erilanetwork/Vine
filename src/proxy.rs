@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use tokio::sync::broadcast;
@@ -13,18 +14,22 @@ use crate::console::Console;
 use crate::network;
 use crate::status::{StatusHandler, StatusIconManager};
 use vine_auth::{Authenticator, KeyStore};
-use vine_config::{Config, ForwardingMode};
+use vine_config::{Config, ForwardingMode, SharedConfig};
 use vine_i18n::translate;
 use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
+use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager, send_reliably};
 use vine_security::ConnectionRateLimiter;
 
 pub struct ProxyServer {
+    services: Arc<ProxyServices>,
+    // the config the listener was started with; anything live goes through services
     config: Arc<Config>,
     keystore: Arc<KeyStore>,
     authenticator: Arc<Authenticator>,
     rate_limiter: Arc<ConnectionRateLimiter>,
-    status_handler: Arc<StatusHandler>,
+    // swapped whole on a reload, a ping in flight keeps the one it started with
+    status_handler: Arc<RwLock<Arc<StatusHandler>>>,
     router: Arc<Router>,
     online_players: Arc<AtomicUsize>,
     session_manager: Arc<SessionManager>,
@@ -33,8 +38,13 @@ pub struct ProxyServer {
 }
 
 impl ProxyServer {
-    pub fn new(config: Config) -> Result<Self, Box<dyn std::error::Error>> {
-        let config = Arc::new(config);
+    /// `config_path` is where `/vine config reload` reads the config from again
+    pub fn new(
+        config: Config,
+        config_path: impl Into<PathBuf>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let services = Arc::new(ProxyServices::new(SharedConfig::new(config, config_path)));
+        let config = services.config();
         let keystore = Arc::new(KeyStore::new()?);
         let authenticator = Arc::new(Authenticator::new());
 
@@ -48,38 +58,20 @@ impl ProxyServer {
         let session_manager = Arc::new(SessionManager::new());
         let command_dispatcher = Arc::new(CommandDispatcher::new());
 
-        let server_icons: HashMap<String, String> = config
-            .servers
-            .iter()
-            .filter_map(|(name, s)| s.icon_path.as_ref().map(|p| (name.clone(), p.clone())))
-            .collect();
-
-        let icon_manager = Arc::new(StatusIconManager::new(
-            config.motd.icon_path.clone(),
-            server_icons,
-            config.routing.forced_hosts.clone(),
-            config.routing.default_server.clone(),
-        ));
-
-        let status_handler = Arc::new(StatusHandler::new(
-            config.motd.clone(),
-            icon_manager,
-            config.servers.clone(),
-            config.routing.forced_hosts.clone(),
-        ));
-
-        let router = Arc::new(Router::new(config.routing.clone(), config.servers.clone()));
+        let status_handler = Arc::new(RwLock::new(build_status_handler(&config)));
+        let router = Arc::new(Router::new(services.clone()));
 
         let plugins_dir = std::path::PathBuf::from(&config.plugins.plugin_dir);
         let plugin_manager =
             vine_plugin::plugin::PluginManager::new(plugins_dir, (&config.plugins).into())?;
         plugin_manager.init_proxy_context(
-            config.clone(),
+            services.clone(),
             session_manager.clone(),
             command_dispatcher.clone(),
         );
 
         Ok(Self {
+            services,
             config,
             keystore,
             authenticator,
@@ -149,11 +141,12 @@ impl ProxyServer {
             self.command_dispatcher.clone(),
             ProxyCommandSource {
                 sender: CommandSender::Console,
-                config: self.config.clone(),
+                services: self.services.clone(),
                 session_manager: self.session_manager.clone(),
             },
             shutdown_tx,
         );
+        self.spawn_reload_watcher();
 
         if self.config.plugins.enabled {
             debug!(
@@ -182,10 +175,14 @@ impl ProxyServer {
                 accept_res = listener.accept() => {
                     match accept_res {
                         Ok((stream, peer_addr)) => {
-                            let config = self.config.clone();
+                            let config = self.services.config();
                             let keystore = self.keystore.clone();
                             let authenticator = self.authenticator.clone();
-                            let status_handler = self.status_handler.clone();
+                            let status_handler = self
+                                .status_handler
+                                .read()
+                                .map(|handler| handler.clone())
+                                .unwrap_or_else(|poisoned| poisoned.into_inner().clone());
                             let router = self.router.clone();
                             let online_players = self.online_players.clone();
                             let rate_limiter = self.rate_limiter.clone();
@@ -193,6 +190,7 @@ impl ProxyServer {
                             let command_dispatcher = self.command_dispatcher.clone();
                             let plugin_manager = self.plugin_manager.clone();
                             let trusted_proxies = trusted_proxies.clone();
+                            let services = self.services.clone();
 
                             tokio::spawn(async move {
                                 if let Err(e) = network::configure_client_socket(&stream, &config.network) {
@@ -236,6 +234,7 @@ impl ProxyServer {
                                 let handler = ClientHandler::new(
                                     effective_addr,
                                     config,
+                                    services,
                                     keystore,
                                     authenticator,
                                     status_handler,
@@ -270,6 +269,22 @@ impl ProxyServer {
         Ok(())
     }
 
+    /// Rebuilds what is derived from the config whenever `/vine config reload` swaps it
+    fn spawn_reload_watcher(&self) {
+        let mut changes = self.services.config.subscribe();
+        let status_handler = self.status_handler.clone();
+        tokio::spawn(async move {
+            while changes.changed().await.is_ok() {
+                let config = changes.borrow_and_update().clone();
+                let handler = build_status_handler(&config);
+                match status_handler.write() {
+                    Ok(mut current) => *current = handler,
+                    Err(poisoned) => *poisoned.into_inner() = handler,
+                }
+            }
+        });
+    }
+
     async fn disconnect_players(&self) {
         for session in self.session_manager.list_sessions() {
             let reason = translate(session.effective_locale(), "vine.shutdown", &[]);
@@ -281,4 +296,26 @@ impl ProxyServer {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     }
+}
+
+fn build_status_handler(config: &Config) -> Arc<StatusHandler> {
+    let server_icons: HashMap<String, String> = config
+        .servers
+        .iter()
+        .filter_map(|(name, s)| s.icon_path.as_ref().map(|p| (name.clone(), p.clone())))
+        .collect();
+
+    let icon_manager = Arc::new(StatusIconManager::new(
+        config.motd.icon_path.clone(),
+        server_icons,
+        config.routing.forced_hosts.clone(),
+        config.routing.default_server.clone(),
+    ));
+
+    Arc::new(StatusHandler::new(
+        config.motd.clone(),
+        icon_manager,
+        config.servers.clone(),
+        config.routing.forced_hosts.clone(),
+    ))
 }

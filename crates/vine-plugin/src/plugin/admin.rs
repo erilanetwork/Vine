@@ -8,21 +8,37 @@ use pumpkin_command::node::{CommandExecutor, CommandExecutorResult};
 use pumpkin_command::suggestion::provider::{SuggestionProvider, SuggestionProviderResult};
 use pumpkin_command::suggestion::suggestions::SuggestionsBuilder;
 
+use tracing::{info, warn};
+
 use super::PluginManager;
 use crate::command::{CommandDispatcher, ProxyCommandSource};
 
 const PERMISSION: &str = "vine.command.plugins";
+const RELOAD_PERMISSION: &str = "vine.command.reload";
 
 pub fn register(dispatcher: &CommandDispatcher, manager: &Arc<PluginManager>) {
     let manager = Arc::downgrade(manager);
     dispatcher.register(
-        command("vine", "Manages the proxy's plugins")
-            .requires(Requirement::from(PERMISSION))
-            .then(literal("plugins").executes(ListPlugins {
-                manager: manager.clone(),
+        command("vine", "Manages the proxy's plugins and config")
+            // either node opens /vine, the subcommands check their own
+            .requires(Requirement::from(|source: &ProxyCommandSource| {
+                source.has_permission(PERMISSION) || source.has_permission(RELOAD_PERMISSION)
             }))
             .then(
+                literal("config")
+                    .requires(Requirement::from(RELOAD_PERMISSION))
+                    .then(literal("reload").executes(ReloadConfig)),
+            )
+            .then(
+                literal("plugins")
+                    .requires(Requirement::from(PERMISSION))
+                    .executes(ListPlugins {
+                        manager: manager.clone(),
+                    }),
+            )
+            .then(
                 literal("reload")
+                    .requires(Requirement::from(PERMISSION))
                     .executes(ReloadPlugins {
                         manager: manager.clone(),
                     })
@@ -112,6 +128,33 @@ impl CommandExecutor<ProxyCommandSource> for ReloadPlugins {
             }
         });
         Ok(1)
+    }
+}
+
+/// Reads vine.toml again. Settings that only apply when the proxy starts are reported instead
+/// of silently ignored.
+struct ReloadConfig;
+
+impl CommandExecutor<ProxyCommandSource> for ReloadConfig {
+    fn execute(&self, context: &CommandContext<ProxyCommandSource>) -> CommandExecutorResult {
+        let source = &context.source;
+        let old = source.config();
+        match source.services.config.reload() {
+            Ok(new) => {
+                info!("Reloaded '{}'", source.services.config.path().display());
+                source.reply("vine.command.config.reloaded", &[]);
+                let restart = old.restart_required(&new);
+                if !restart.is_empty() {
+                    source.reply("vine.command.config.restart", &[&restart.join(", ")]);
+                }
+                Ok(1)
+            }
+            Err(e) => {
+                warn!("Failed to reload the config: {e}");
+                source.reply("vine.command.config.failed", &[&e]);
+                Ok(0)
+            }
+        }
     }
 }
 

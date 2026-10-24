@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let server = ProxyServer::new(config)?;
+    let server = ProxyServer::new(config, config_path)?;
 
     let (shutdown_tx, _) = broadcast::channel(1);
     let signal_tx = shutdown_tx.clone();

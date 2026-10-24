@@ -17,13 +17,14 @@ use super::switch::Switch;
 use super::task::Task;
 use super::tunnel::{ClientSettings, End, Link, Served, Tunnel};
 use vine_auth::AuthenticatedPlayer;
-use vine_config::{BackendConfig, Config, NetworkConfig};
+use vine_config::{BackendConfig, NetworkConfig};
 use vine_i18n::translate;
 use vine_plugin::command::CommandDispatcher;
 use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerJoinEvent, ServerConnectEvent, ServerConnectedEvent,
 };
+use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager};
 use vine_protocol::packets::config::ConfigDisconnect;
 use vine_protocol::packets::login::LoginDisconnect;
@@ -68,7 +69,7 @@ pub struct BackendBridge {
     pub(super) compression_level: i32,
     session_manager: Arc<SessionManager>,
     command_dispatcher: Arc<CommandDispatcher>,
-    pub(super) proxy_config: Arc<Config>,
+    pub(super) services: Arc<ProxyServices>,
     pub(super) plugin_manager: Arc<PluginManager>,
 }
 
@@ -88,7 +89,7 @@ impl BackendBridge {
         compression_level: i32,
         session_manager: Arc<SessionManager>,
         command_dispatcher: Arc<CommandDispatcher>,
-        proxy_config: Arc<Config>,
+        services: Arc<ProxyServices>,
         plugin_manager: Arc<PluginManager>,
     ) -> Self {
         Self {
@@ -105,7 +106,7 @@ impl BackendBridge {
             compression_level,
             session_manager,
             command_dispatcher,
-            proxy_config,
+            services,
             plugin_manager,
         }
     }
@@ -165,9 +166,15 @@ impl BackendBridge {
         }
         let initial_backend_cfg = if connect_event.target_server == self.server_name {
             self.config.clone()
-        } else if let Some(cfg) = self.proxy_config.servers.get(&connect_event.target_server) {
+        } else if let Some(cfg) = self
+            .services
+            .config()
+            .servers
+            .get(&connect_event.target_server)
+            .cloned()
+        {
             current_server_name = connect_event.target_server;
-            cfg.clone()
+            cfg
         } else {
             warn!(
                 "A plugin sent '{}' to unknown server '{}'; using '{}'",
@@ -269,7 +276,7 @@ impl BackendBridge {
             plugin_manager: bridge.plugin_manager.clone(),
             session_manager: bridge.session_manager.clone(),
             command_dispatcher: bridge.command_dispatcher.clone(),
-            proxy_config: bridge.proxy_config.clone(),
+            services: bridge.services.clone(),
             action_tx,
             client_out: client_out.clone(),
             client_compression,

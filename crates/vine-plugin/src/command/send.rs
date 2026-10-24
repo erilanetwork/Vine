@@ -47,7 +47,7 @@ impl SuggestionProvider<ProxyCommandSource> for ServerSuggestionProvider {
     ) -> SuggestionProviderResult {
         let mut builder = builder;
         let remaining = builder.remaining_lowercase().to_string();
-        for server in context.source.config.servers.keys() {
+        for server in context.source.config().servers.keys() {
             if server.to_ascii_lowercase().starts_with(&remaining) {
                 builder = builder.suggest(server.as_str());
             }
@@ -73,14 +73,15 @@ impl CommandExecutor<ProxyCommandSource> for SendCommandExecutor {
 
         let canonical_server = match context
             .source
-            .config
+            .config()
             .servers
             .keys()
             .find(|k| k.eq_ignore_ascii_case(server_name))
         {
             Some(name) => name.clone(),
             None => {
-                let mut available: Vec<&String> = context.source.config.servers.keys().collect();
+                let config = context.source.config();
+                let mut available: Vec<&String> = config.servers.keys().collect();
                 available.sort();
                 let available = available
                     .into_iter()
@@ -168,6 +169,7 @@ pub fn register(dispatcher: &mut RawCommandDispatcher<ProxyCommandSource>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::ProxyServices;
     use std::sync::Arc;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -208,7 +210,7 @@ mod tests {
 
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 
@@ -231,7 +233,7 @@ mod tests {
                 username: "RegularPlayer".to_string(),
                 action_tx: non_admin_tx,
             },
-            config: Arc::new(Config::default()),
+            services: ProxyServices::from_config(Config::default()),
             session_manager: Arc::new(SessionManager::new()),
         };
         let res_denied = dispatcher.execute_input("send Steve survival", &non_admin_source);
@@ -244,7 +246,7 @@ mod tests {
         let session_manager = Arc::new(SessionManager::new());
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 
@@ -276,7 +278,7 @@ mod tests {
         let session_manager = Arc::new(SessionManager::new());
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 
@@ -333,7 +335,7 @@ mod tests {
 
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 

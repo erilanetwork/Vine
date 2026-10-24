@@ -21,7 +21,7 @@ impl SuggestionProvider<ProxyCommandSource> for ServerSuggestionProvider {
     ) -> SuggestionProviderResult {
         let mut builder = builder;
         let remaining = builder.remaining_lowercase().to_string();
-        for server in context.source.config.servers.keys() {
+        for server in context.source.config().servers.keys() {
             if server.to_ascii_lowercase().starts_with(&remaining) {
                 builder = builder.suggest(server.as_str());
             }
@@ -43,7 +43,8 @@ impl CommandExecutor<ProxyCommandSource> for ServerInfoCommandExecutor {
             ));
         }
 
-        let mut available: Vec<&String> = context.source.config.servers.keys().collect();
+        let config = context.source.config();
+        let mut available: Vec<&String> = config.servers.keys().collect();
         available.sort();
         let servers_str = available
             .iter()
@@ -104,14 +105,15 @@ impl CommandExecutor<ProxyCommandSource> for ServerSwitchCommandExecutor {
 
         let target_server = match context
             .source
-            .config
+            .config()
             .servers
             .keys()
             .find(|k| k.eq_ignore_ascii_case(server_name))
         {
             Some(name) => name.clone(),
             None => {
-                let mut available: Vec<&String> = context.source.config.servers.keys().collect();
+                let config = context.source.config();
+                let mut available: Vec<&String> = config.servers.keys().collect();
                 available.sort();
                 let available = available
                     .into_iter()
@@ -167,6 +169,7 @@ pub fn register(dispatcher: &mut RawCommandDispatcher<ProxyCommandSource>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::ProxyServices;
     use crate::session::{PlayerSession, SessionManager};
     use std::sync::Arc;
     use tokio::sync::mpsc;
@@ -178,7 +181,7 @@ mod tests {
         let mut dispatcher = RawCommandDispatcher::new();
         register(&mut dispatcher);
 
-        let config = Arc::new(Config::default());
+        let config = ProxyServices::from_config(Config::default());
         let session_manager = Arc::new(SessionManager::new());
         let (action_tx, mut action_rx) = mpsc::channel(16);
 
@@ -200,7 +203,7 @@ mod tests {
                 username: "Steve".to_string(),
                 action_tx,
             },
-            config: config.clone(),
+            services: config.clone(),
             session_manager: session_manager.clone(),
         };
 

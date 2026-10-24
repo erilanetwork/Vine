@@ -26,7 +26,7 @@ impl CommandExecutor<ProxyCommandSource> for GlistCommandExecutor {
         let total_players = sessions.len();
 
         let mut server_players: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for server_name in context.source.config.servers.keys() {
+        for server_name in context.source.config().servers.keys() {
             server_players.entry(server_name.clone()).or_default();
         }
 
@@ -82,6 +82,7 @@ pub fn register(dispatcher: &mut RawCommandDispatcher<ProxyCommandSource>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::ProxyServices;
     use std::sync::Arc;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -111,7 +112,7 @@ mod tests {
                 username: "TestPlayer".to_string(),
                 action_tx,
             },
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 
@@ -191,7 +192,7 @@ mod tests {
                 username: "Admin".to_string(),
                 action_tx,
             },
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 

@@ -3116,6 +3116,7 @@ dependencies = [
  "rand",
  "serde",
  "tempfile",
+ "tokio",
  "toml",
  "tracing",
  "vine-network",

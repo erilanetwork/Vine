@@ -23,6 +23,7 @@ pub use pumpkin_command::suggestion::suggestions::Suggestions;
 use pumpkin_command::suggestion::suggestions::SuggestionsBuilder;
 use pumpkin_util::text::TextComponent;
 
+use crate::services::ProxyServices;
 use crate::session::{PlayerAction, SessionManager};
 use vine_config::Config;
 use vine_i18n::translate;
@@ -65,18 +66,23 @@ impl CommandSender {
 #[derive(Clone)]
 pub struct ProxyCommandSource {
     pub sender: CommandSender,
-    pub config: Arc<Config>,
+    pub services: Arc<ProxyServices>,
     pub session_manager: Arc<SessionManager>,
 }
 
 impl ProxyCommandSource {
+    /// The config as it is right now, reloads included
+    pub fn config(&self) -> Arc<Config> {
+        self.services.config()
+    }
+
     /// Evaluates if the command source has the specified permission node.
     /// Console always returns `true`.
     pub fn has_permission(&self, node: &str) -> bool {
         match &self.sender {
             CommandSender::Console => true,
             CommandSender::Player { username, .. } => {
-                self.config.permissions.has_permission(username, node)
+                self.config().permissions.has_permission(username, node)
             }
         }
     }
@@ -473,11 +479,11 @@ mod tests {
         assert!(dispatcher.has_command("status"));
         assert!(!dispatcher.has_command("unknown"));
 
-        let config = Arc::new(Config::default());
+        let config = ProxyServices::from_config(Config::default());
         let session_manager = Arc::new(SessionManager::new());
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config,
+            services: config,
             session_manager,
         };
 
@@ -505,11 +511,11 @@ mod tests {
     #[test]
     fn test_suggest_various_inputs() {
         let dispatcher = CommandDispatcher::new();
-        let config = Arc::new(Config::default());
+        let config = ProxyServices::from_config(Config::default());
         let session_manager = Arc::new(SessionManager::new());
         let source = ProxyCommandSource {
             sender: CommandSender::Console,
-            config,
+            services: config,
             session_manager,
         };
 

@@ -128,7 +128,7 @@ impl BackendBridge {
         if target == current {
             return Connected::AlreadyThere(target);
         }
-        let Some(config) = self.proxy_config.servers.get(&target).cloned() else {
+        let Some(config) = self.services.config().servers.get(&target).cloned() else {
             return Connected::Unknown(target);
         };
         let prepared = self.prepare_backend(&target, &config).await;
@@ -155,7 +155,7 @@ impl BackendBridge {
         if event.cancelled {
             return Connected::Cancelled(event.cancel_reason);
         }
-        let (target, config) = match self.proxy_config.servers.get(&event.target_server) {
+        let (target, config) = match self.services.config().servers.get(&event.target_server) {
             Some(cfg) if event.target_server != target => (event.target_server, cfg.clone()),
             _ => (target, config),
         };

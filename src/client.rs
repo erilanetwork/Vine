@@ -23,6 +23,7 @@ use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerLoginEvent, PlayerPreLoginEvent, ProxyPingEvent,
 };
+use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerSession, SessionManager};
 use vine_protocol::packets::handshake::{Handshake, HandshakeIntent};
 use vine_protocol::packets::login::{
@@ -59,6 +60,7 @@ type ClientWriter = PacketWriter<OwnedWriteHalf>;
 pub struct ClientHandler {
     peer_addr: SocketAddr,
     config: Arc<Config>,
+    services: Arc<ProxyServices>,
     keystore: Arc<KeyStore>,
     authenticator: Arc<Authenticator>,
     status_handler: Arc<StatusHandler>,
@@ -74,6 +76,7 @@ impl ClientHandler {
     pub fn new(
         peer_addr: SocketAddr,
         config: Arc<Config>,
+        services: Arc<ProxyServices>,
         keystore: Arc<KeyStore>,
         authenticator: Arc<Authenticator>,
         status_handler: Arc<StatusHandler>,
@@ -86,6 +89,7 @@ impl ClientHandler {
         Self {
             peer_addr,
             config,
+            services,
             keystore,
             authenticator,
             status_handler,
@@ -602,7 +606,7 @@ impl ClientHandler {
             self.config.server.compression_level,
             self.session_manager.clone(),
             self.command_dispatcher.clone(),
-            self.config.clone(),
+            self.services.clone(),
             self.plugin_manager.clone(),
         );
 

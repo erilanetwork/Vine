@@ -10,14 +10,14 @@ use crate::command::CommandDispatcher;
 use crate::plugin::PluginManager;
 use crate::plugin::api::{EventPriority, EventType, PluginContext};
 use crate::plugin::loader::wasm::wasm_host::WasmPlugin;
+use crate::services::ProxyServices;
 use crate::session::{PlayerAction, SessionManager, send_from_plugin};
-use vine_config::Config;
 
 use super::wit;
 
 #[derive(Clone)]
 pub struct ProxyPluginContext {
-    pub config: Arc<Config>,
+    pub services: Arc<ProxyServices>,
     pub session_manager: Arc<SessionManager>,
     pub command_dispatcher: Arc<CommandDispatcher>,
     pub plugin_manager: Arc<PluginManager>,
@@ -441,7 +441,8 @@ impl wit::vine::plugin::proxy::Host for PluginHostState {
         if let Some(proxy) = &self.proxy {
             let sessions = proxy.session_manager.list_sessions();
             let mut list = Vec::new();
-            for (name, srv) in &proxy.config.servers {
+            let config = proxy.services.config();
+            for (name, srv) in &config.servers {
                 let player_count = sessions
                     .iter()
                     .filter(|s| s.current_server == *name)
@@ -517,7 +518,7 @@ impl wit::vine::plugin::proxy::Host for PluginHostState {
         server_name: String,
     ) -> wasmtime::Result<bool> {
         if let Some(proxy) = &self.proxy
-            && proxy.config.servers.contains_key(&server_name)
+            && proxy.services.config().servers.contains_key(&server_name)
             && let Ok(target_uuid) = uuid::Uuid::parse_str(&player_uuid)
             && let Some(session) = proxy
                 .session_manager

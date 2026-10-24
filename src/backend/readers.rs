@@ -10,13 +10,13 @@ use super::client_queue::ClientQueue;
 use super::login::BackendReader;
 use super::suggestions::{PendingSuggestion, Suggest, SuggestionRequest};
 use super::tunnel::Served;
-use vine_config::Config;
 use vine_i18n::translate;
 use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
 use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerChatEvent, PlayerCommandEvent, PluginMessageEvent, PluginMessageSource,
 };
+use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager};
 use vine_protocol::packets::config::ConfigDisconnect;
 use vine_protocol::packets::play::{
@@ -107,7 +107,7 @@ pub(super) struct Session {
     pub(super) plugin_manager: Arc<PluginManager>,
     pub(super) session_manager: Arc<SessionManager>,
     pub(super) command_dispatcher: Arc<CommandDispatcher>,
-    pub(super) proxy_config: Arc<Config>,
+    pub(super) services: Arc<ProxyServices>,
     pub(super) action_tx: mpsc::Sender<PlayerAction>,
     pub(super) client_out: ClientQueue,
     // The client's compression threshold; a backend using the same one has its frames passed on
@@ -199,7 +199,7 @@ impl Session {
                 username: self.username.clone(),
                 action_tx: self.action_tx.clone(),
             },
-            config: self.proxy_config.clone(),
+            services: self.services.clone(),
             session_manager: self.session_manager.clone(),
         }
     }

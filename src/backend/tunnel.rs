@@ -574,7 +574,8 @@ impl Tunnel {
                 // A backend kept waiting this long may have given up on the login, so it is
                 // logged into again
                 if since.elapsed() > HELD_BACKEND_LIMIT
-                    && let Some(config) = self.bridge.proxy_config.servers.get(&target).cloned()
+                    && let Some(config) =
+                        self.bridge.services.config().servers.get(&target).cloned()
                 {
                     let job = Job::spawn(self.bridge.clone().prepare_job(target.clone(), config));
                     self.switch = Switch::Connecting { target, job };
@@ -606,7 +607,7 @@ impl Tunnel {
                 since,
             } if since.elapsed() <= HELD_BACKEND_LIMIT => self.leave(target, prepared),
             Switch::Held { target, .. } => {
-                match self.bridge.proxy_config.servers.get(&target).cloned() {
+                match self.bridge.services.config().servers.get(&target).cloned() {
                     Some(config) => {
                         let job =
                             Job::spawn(self.bridge.clone().prepare_job(target.clone(), config));

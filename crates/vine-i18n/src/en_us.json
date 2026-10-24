@@ -53,7 +53,7 @@
   "vine.command.status.online_mode": "Online mode: %s",
   "vine.command.status.servers": "Servers (%s): %s",
   "vine.command.status.server": "%s (%s)",
-  "vine.command.help": "Available commands:\n  - /server [server]            : View current server or switch to another backend\n  - /send <player|all> <server> : Send players to another backend (Admin)\n  - /list                       : List connected players\n  - /glist                      : List players grouped by server\n  - /status                     : Show proxy version, uptime and players (Admin)\n  - /help [command]             : Show this help or info about a command\n  - /vine plugins|reload [name] : List or reload plugins (Admin)",
+  "vine.command.help": "Available commands:\n  - /server [server]            : View current server or switch to another backend\n  - /send <player|all> <server> : Send players to another backend (Admin)\n  - /list                       : List connected players\n  - /glist                      : List players grouped by server\n  - /status                     : Show proxy version, uptime and players (Admin)\n  - /help [command]             : Show this help or info about a command\n  - /vine plugins|reload [name] : List or reload plugins (Admin)\n  - /vine config reload         : Reload vine.toml without a restart (Admin)",
   "vine.command.help.server": "Command /server:\n  Usage: /server [server]\n  Description: View your current server or switch to another backend server.",
   "vine.command.help.send": "Command /send:\n  Usage: /send <player|all> <server>\n  Description: Send players to another backend server (Requires vine.command.send / admin).",
   "vine.command.help.list": "Command /list:\n  Usage: /list\n  Description: List all online players connected to the proxy.",
@@ -66,5 +66,8 @@
   "vine.command.plugins.disabled": " (disabled)",
   "vine.command.plugins.none": "No plugins are loaded.",
   "vine.command.plugins.reloaded": "§aReloaded %s v%s",
-  "vine.command.plugins.reload_failed": "§c%s"
+  "vine.command.plugins.reload_failed": "§c%s",
+  "vine.command.config.reloaded": "§aReloaded the config.",
+  "vine.command.config.restart": "§eThese settings only change after a restart: %s",
+  "vine.command.config.failed": "§cCould not reload the config, keeping the old one: %s"
 }

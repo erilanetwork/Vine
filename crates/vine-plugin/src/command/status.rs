@@ -29,8 +29,8 @@ impl CommandExecutor<ProxyCommandSource> for StatusCommandExecutor {
         }
 
         let sessions = source.session_manager.list_sessions();
-        let mut per_server: BTreeMap<&str, usize> = source
-            .config
+        let config = source.config();
+        let mut per_server: BTreeMap<&str, usize> = config
             .servers
             .keys()
             .map(|name| (name.as_str(), 0))
@@ -45,7 +45,7 @@ impl CommandExecutor<ProxyCommandSource> for StatusCommandExecutor {
             .map(|(name, count)| source.tr("vine.command.status.server", &[&name, &count]))
             .collect();
 
-        let online_mode = if source.config.server.online_mode {
+        let online_mode = if config.server.online_mode {
             "on"
         } else {
             "off"
@@ -64,7 +64,7 @@ impl CommandExecutor<ProxyCommandSource> for StatusCommandExecutor {
             ),
             source.tr(
                 "vine.command.status.players",
-                &[&sessions.len(), &source.config.motd.max_players],
+                &[&sessions.len(), &config.motd.max_players],
             ),
             source.tr("vine.command.status.online_mode", &[&online_mode]),
             source.tr(
@@ -110,6 +110,7 @@ pub fn register(dispatcher: &mut RawCommandDispatcher<ProxyCommandSource>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::ProxyServices;
     use std::sync::Arc;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -173,7 +174,7 @@ mod tests {
                 username: "Admin".to_string(),
                 action_tx,
             },
-            config: Arc::new(config),
+            services: ProxyServices::from_config(config),
             session_manager,
         };
 
@@ -199,7 +200,7 @@ mod tests {
                 username: "Steve".to_string(),
                 action_tx,
             },
-            config: Arc::new(Config::default()),
+            services: ProxyServices::from_config(Config::default()),
             session_manager: Arc::new(SessionManager::new()),
         };
         assert!(

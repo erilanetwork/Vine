@@ -83,12 +83,12 @@ impl PluginManager {
 
     pub fn init_proxy_context(
         self: &Arc<Self>,
-        config: Arc<vine_config::Config>,
+        services: Arc<crate::services::ProxyServices>,
         session_manager: Arc<crate::session::SessionManager>,
         command_dispatcher: Arc<crate::command::CommandDispatcher>,
     ) {
         let ctx = ProxyPluginContext {
-            config,
+            services,
             session_manager,
             command_dispatcher,
             plugin_manager: self.clone(),
@@ -1043,7 +1043,7 @@ mod tests {
     #[tokio::test]
     async fn test_plugin_manager_empty_dir() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
-        let config = Arc::new(Config::default());
+        let config = crate::services::ProxyServices::from_config(Config::default());
         let dispatcher = Arc::new(CommandDispatcher::new());
         let session_manager = Arc::new(SessionManager::new());
         let manager = PluginManager::new(
@@ -1062,7 +1062,7 @@ mod tests {
     #[tokio::test]
     async fn test_plugin_manager_event_dispatch() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
-        let config = Arc::new(Config::default());
+        let config = crate::services::ProxyServices::from_config(Config::default());
         let dispatcher = Arc::new(CommandDispatcher::new());
         let session_manager = Arc::new(SessionManager::new());
         let manager = PluginManager::new(

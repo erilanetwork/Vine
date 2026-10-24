@@ -1,4 +1,5 @@
 pub mod permissions;
+mod shared;
 
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Write, path::Path};
@@ -270,6 +271,7 @@ impl Default for Config {
 }
 
 pub use permissions::PermissionsConfig;
+pub use shared::SharedConfig;
 
 pub fn normalize_host(host: &str) -> String {
     host.trim().trim_end_matches('.').to_ascii_lowercase()
@@ -310,13 +312,17 @@ fn load_or_create_secret_file(
 impl Config {
     pub fn load_or_create<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let path = path.as_ref();
-        let mut config = if path.exists() {
-            toml::from_str(&std::fs::read_to_string(path)?)?
-        } else {
-            let default_config = Config::default();
-            std::fs::write(path, toml::to_string_pretty(&default_config)?)?;
-            default_config
-        };
+        if !path.exists() {
+            std::fs::write(path, toml::to_string_pretty(&Config::default())?)?;
+        }
+        Self::load(path)
+    }
+
+    /// Reads and validates an existing config file. Unlike `load_or_create` this never writes a
+    /// default one, so a reload can't replace a file that went missing.
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        let path = path.as_ref();
+        let mut config: Config = toml::from_str(&std::fs::read_to_string(path)?)?;
         config.routing.forced_hosts = std::mem::take(&mut config.routing.forced_hosts)
             .into_iter()
             .map(|(host, server)| (normalize_host(&host), server))
@@ -347,6 +353,37 @@ impl Config {
             server.secret = Some(key.clone());
         }
         Ok(())
+    }
+
+    /// Names the settings that differ from `other` but only take effect on a restart
+    pub fn restart_required(&self, other: &Config) -> Vec<&'static str> {
+        // hmm, the sections don't implement PartialEq, comparing their TOML is good enough here
+        fn differs<T: Serialize>(a: &T, b: &T) -> bool {
+            toml::to_string(a).ok() != toml::to_string(b).ok()
+        }
+        let mut changed = Vec::new();
+        if self.server.bind_address != other.server.bind_address {
+            changed.push("server.bind_address");
+        }
+        if differs(&self.network, &other.network) {
+            changed.push("network");
+        }
+        let (a, b) = (&self.security, &other.security);
+        if (
+            a.rate_limit_enabled,
+            a.max_connections_per_sec,
+            a.connection_burst,
+        ) != (
+            b.rate_limit_enabled,
+            b.max_connections_per_sec,
+            b.connection_burst,
+        ) {
+            changed.push("security rate limits");
+        }
+        if differs(&self.plugins, &other.plugins) {
+            changed.push("plugins");
+        }
+        changed
     }
 
     pub fn validate(&self) -> Result<(), String> {
