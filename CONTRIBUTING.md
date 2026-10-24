@@ -68,6 +68,10 @@ Packet ids and version tables live in `crates/vine-protocol`. When adding a new 
 
 Use a short imperative title in sentence case, without a `type:` prefix or a trailing period, for example `Add a status command`. One purpose per commit.
 
+## Releases
+
+Each release has its notes in `changelogs/<version>.md`, for example `changelogs/0.1.0.md`. To cut one, bump the version in `Cargo.toml`, add its changelog and push a tag with the same version. The release workflow refuses a tag that does not match `Cargo.toml`, builds every platform and uses the changelog as the release body.
+
 ## Reporting bugs
 
 Use the bug report template and include the Vine version, the client version, the backend software and the relevant part of the log. For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
