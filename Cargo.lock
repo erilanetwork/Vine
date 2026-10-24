@@ -3096,7 +3096,6 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "vine-auth",
- "vine-bedrock",
  "vine-config",
  "vine-i18n",
  "vine-network",
@@ -3124,18 +3123,6 @@ dependencies = [
  "tracing",
  "uuid",
  "vine-protocol",
-]
-
-[[package]]
-name = "vine-bedrock"
-version = "0.1.0"
-dependencies = [
- "rand",
- "tokio",
- "tracing",
- "vine-config",
- "vine-protocol",
- "vine-security",
 ]
 
 [[package]]

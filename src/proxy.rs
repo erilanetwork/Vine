@@ -163,16 +163,6 @@ impl ProxyServer {
         } else {
             info!("  Telemetry: disabled");
         }
-        if self.config.bedrock.enabled {
-            info!(
-                "  Bedrock Edition: enabled (listening on UDP {}, v{} / proto {})",
-                self.config.bedrock.bind_address,
-                self.config.bedrock.version_name,
-                self.config.bedrock.protocol_version
-            );
-        } else {
-            info!("  Bedrock Edition: disabled");
-        }
         info!("=====================================================");
 
         let trusted_proxies: Arc<Vec<network::IpRange>> = Arc::new(
@@ -189,27 +179,6 @@ impl ProxyServer {
             self.online_players.clone(),
             shutdown_rx.resubscribe(),
         );
-
-        if self.config.bedrock.enabled {
-            let mut bedrock_cfg = self.config.bedrock.clone();
-            if bedrock_cfg.max_players == 0 {
-                bedrock_cfg.max_players = self.config.motd.max_players;
-            }
-            let online_players = self.online_players.clone();
-            let bedrock_shutdown = shutdown_rx.resubscribe();
-
-            tokio::spawn(async move {
-                if let Err(e) = vine_bedrock::run_bedrock_listener(
-                    bedrock_cfg,
-                    online_players,
-                    bedrock_shutdown,
-                )
-                .await
-                {
-                    error!("Bedrock listener terminated with error: {}", e);
-                }
-            });
-        }
 
         let console_dispatcher = self.command_dispatcher.clone();
         let console_config = self.config.clone();

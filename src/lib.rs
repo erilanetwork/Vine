@@ -5,7 +5,6 @@ pub mod status;
 pub mod telemetry;
 
 pub use vine_auth as auth;
-pub use vine_bedrock as bedrock;
 pub use vine_config as config;
 pub use vine_config::permissions;
 pub use vine_i18n as i18n;

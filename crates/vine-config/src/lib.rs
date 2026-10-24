@@ -1,10 +1,8 @@
-pub mod bedrock;
 pub mod permissions;
 
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Write, path::Path};
 
-pub use bedrock::BedrockConfig;
 pub use vine_network::NetworkConfig;
 
 // Covers the handshake, status and every login packet a client sends, profile keys included
@@ -53,8 +51,6 @@ pub struct Config {
     pub servers: HashMap<String, BackendConfig>,
     #[serde(default)]
     pub telemetry: TelemetryConfig,
-    #[serde(default)]
-    pub bedrock: BedrockConfig,
     #[serde(default)]
     pub permissions: PermissionsConfig,
     #[serde(default)]
@@ -325,7 +321,6 @@ impl Default for Config {
             },
             servers,
             telemetry: TelemetryConfig::default(),
-            bedrock: BedrockConfig::default(),
             permissions: PermissionsConfig::default(),
             plugins: PluginConfig::default(),
         }

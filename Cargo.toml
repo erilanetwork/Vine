@@ -15,7 +15,6 @@ vine-security = { path = "crates/vine-security" }
 vine-network = { path = "crates/vine-network" }
 vine-config = { path = "crates/vine-config" }
 vine-auth = { path = "crates/vine-auth" }
-vine-bedrock = { path = "crates/vine-bedrock" }
 vine-plugin = { path = "crates/vine-plugin" }
 
 pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
@@ -74,7 +73,6 @@ vine-security.workspace = true
 vine-network.workspace = true
 vine-config.workspace = true
 vine-auth.workspace = true
-vine-bedrock.workspace = true
 vine-plugin.workspace = true
 pumpkin-util.workspace = true
 pumpkin-auth.workspace = true

@@ -1,4 +1,3 @@
-pub mod bedrock;
 pub mod codec;
 mod generated;
 pub mod packets;

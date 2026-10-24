@@ -6,8 +6,6 @@ services:
     build: .
     ports:
       - "25565:25565"
-      # Only needed when [bedrock] is enabled in vine.toml
-      #- "19132:19132/udp"
     volumes:
       - vine-data:/vine
       # To keep the files in ./data instead, the directory must be owned by the container user:
