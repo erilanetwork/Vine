@@ -57,10 +57,6 @@ docker compose -f docker/docker-compose.yml up -d
 
 The compose file builds the image from source and keeps its files in the `vine-data` volume. Prebuilt images for x86_64 and ARM64 are published to `ghcr.io/erilanetwork/vine` and Docker Hub as `xrookiefight/vine`, tagged `latest`, the release version and `master`. Swap the `build` section for the commented `image` line to use one. The console is attached, so `docker attach vine-vine-1` gives you the Vine prompt.
 
-### Pterodactyl
-
-Import [`egg-vine.json`](egg-vine.json) as a new egg. The install script downloads the musl build for the node's architecture, checks it against the release checksums and writes the default config.
-
 ### From source
 
 Vine needs Rust 1.96 or newer.

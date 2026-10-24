@@ -11,10 +11,6 @@ indent_size = 4
 [*.{yml,yaml,json}]
 indent_size = 2
 
-# hmm, the egg is exported by Pterodactyl as is, so leave its layout alone
-[egg-vine.json]
-indent_size = 4
-
 [*.md]
 # trailing double spaces are line breaks in markdown
 trim_trailing_whitespace = false

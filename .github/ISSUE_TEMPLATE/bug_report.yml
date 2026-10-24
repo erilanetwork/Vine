@@ -37,7 +37,6 @@ body:
       options:
         - Release binary
         - Docker
-        - Pterodactyl
         - Built from source
     validations:
       required: true
