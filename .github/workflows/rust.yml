@@ -93,6 +93,26 @@ jobs:
       - name: Clippy (release)
         run: cargo clippy --release --locked --all-targets --all-features
 
+  plugin_sdk:
+    name: Build the example plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable && rustup default stable
+      - run: rustup target add wasm32-wasip2 && rustup component add clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Clippy (wasm32-wasip2)
+        run: cargo clippy -p hello-plugin -p vine-plugin-sdk --target wasm32-wasip2 --locked
+      - name: Build hello-plugin
+        run: cargo build -p hello-plugin --target wasm32-wasip2 --release --locked
+      # the host test skips itself without a built plugin, this is the job that has one
+      - name: Load it into the plugin host
+        run: cargo test -p vine-plugin --test sdk_plugin --locked
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hello-plugin
+          path: target/wasm32-wasip2/release/hello_plugin.wasm
+
   build_and_test:
     name: Build project and test
     runs-on: ${{ matrix.os }}

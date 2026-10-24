@@ -1,0 +1,14 @@
+[package]
+name = "hello-plugin"
+description = "A small Vine plugin showing events, commands and translations"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+vine-plugin-sdk = { path = "../../crates/vine-plugin-sdk" }
