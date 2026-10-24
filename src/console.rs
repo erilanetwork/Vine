@@ -23,6 +23,7 @@ type ConsoleEditor = Editor<CommandCompleter, DefaultHistory>;
 /// keep working.
 pub struct Console {
     editor: Option<ConsoleEditor>,
+    reads_input: bool,
 }
 
 /// Sets up logging and, when stdin is a terminal, the line editor logs print around.
@@ -57,10 +58,22 @@ pub fn init() -> Console {
         )
         .init();
 
-    Console { editor }
+    Console {
+        editor,
+        reads_input: true,
+    }
 }
 
 impl Console {
+    /// A console that reads nothing and leaves logging alone, for running the proxy inside
+    /// something else, like the integration tests
+    pub fn headless() -> Self {
+        Self {
+            editor: None,
+            reads_input: false,
+        }
+    }
+
     /// Starts reading console commands on their own thread. `stop` and `end` shut the proxy
     /// down, anything else goes to the dispatcher.
     pub fn spawn(
@@ -69,6 +82,9 @@ impl Console {
         source: ProxyCommandSource,
         shutdown_tx: broadcast::Sender<()>,
     ) {
+        if !self.reads_input {
+            return;
+        }
         let (line_tx, mut line_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         let runtime = tokio::runtime::Handle::current();
 
