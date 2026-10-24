@@ -7,7 +7,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
 use tokio::time::timeout;
 use tracing::{debug, warn};
 
-use crate::protocol::PacketWriter;
+use vine_protocol::PacketWriter;
 // Caps memory buffered for a slow client; once full, reading from the backend pauses
 const CLIENT_QUEUE_BYTES: usize = 8 * 1024 * 1024;
 pub(super) const CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(30);

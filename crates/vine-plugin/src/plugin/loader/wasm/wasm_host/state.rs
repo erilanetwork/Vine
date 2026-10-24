@@ -1,0 +1,671 @@
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Weak};
+
+use wasmtime::component::{Resource, ResourceTable};
+use wasmtime_wasi::{FsPerms, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+
+use crate::command::CommandDispatcher;
+use crate::plugin::PluginManager;
+use crate::plugin::api::{EventPriority, EventType, PluginContext};
+use crate::plugin::loader::wasm::wasm_host::WasmPlugin;
+use crate::session::{PlayerAction, SessionManager, send_from_plugin};
+use vine_config::Config;
+
+use super::wit;
+
+#[derive(Clone)]
+pub struct ProxyPluginContext {
+    pub config: Arc<Config>,
+    pub session_manager: Arc<SessionManager>,
+    pub command_dispatcher: Arc<CommandDispatcher>,
+    pub plugin_manager: Arc<PluginManager>,
+}
+
+/// Where a plugin sees its data folder
+const DATA_DIR: &str = "/data";
+
+// A pointer per element, so this is about 8 MB of tables
+const MAX_TABLE_ELEMENTS: usize = 1_000_000;
+// Open files, streams and other handles a plugin may hold at once; files are real descriptors
+// that the proxy needs for its own connections
+const MAX_RESOURCES: usize = 1024;
+
+const MAX_TRANSLATION_LOCALES: usize = 64;
+// Keys across all locales
+const MAX_TRANSLATIONS: usize = 10_000;
+const MAX_LOCALE_LEN: usize = 32;
+const MAX_TRANSLATION_KEY_LEN: usize = 256;
+const MAX_TRANSLATION_TEXT_LEN: usize = 4096;
+
+/// Caps what a plugin allocates across all of its memories and tables, not per memory
+// Failed grows stay counted, since wasmtime also reports failures it never asked about
+pub struct PluginLimiter {
+    memory_limit: usize,
+    memory_used: usize,
+    table_elements: usize,
+}
+
+impl PluginLimiter {
+    pub fn new(memory_limit: usize) -> Self {
+        Self {
+            memory_limit,
+            memory_used: 0,
+            table_elements: 0,
+        }
+    }
+}
+
+impl wasmtime::ResourceLimiter for PluginLimiter {
+    fn memory_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        let growth = desired.saturating_sub(current);
+        if self.memory_used.saturating_add(growth) > self.memory_limit {
+            return Ok(false);
+        }
+        self.memory_used += growth;
+        Ok(true)
+    }
+
+    fn table_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        let growth = desired.saturating_sub(current);
+        if self.table_elements.saturating_add(growth) > MAX_TABLE_ELEMENTS {
+            return Ok(false);
+        }
+        self.table_elements += growth;
+        Ok(true)
+    }
+}
+
+pub type Translations = Vec<(String, String)>;
+
+pub struct ContextResource {
+    pub context: Arc<PluginContext>,
+}
+
+pub struct PluginHostState {
+    pub wasi_ctx: WasiCtx,
+    pub resource_table: ResourceTable,
+    pub limits: PluginLimiter,
+    pub proxy: Option<ProxyPluginContext>,
+    pub plugin_name: String,
+    pub data_folder: PathBuf,
+    pub plugin: Option<Weak<WasmPlugin>>,
+    pub killed: Arc<AtomicBool>,
+    // Translations registered before the plugin's name is known, which is their namespace
+    early_translations: Option<Vec<(String, Translations)>>,
+    event_cap_warned: bool,
+    command_cap_warned: bool,
+    // Keys taken so far in each locale, early ones included
+    translation_keys: HashMap<String, HashSet<String>>,
+    translations_refused_warned: bool,
+}
+
+impl Default for PluginHostState {
+    fn default() -> Self {
+        Self::new(String::new(), PathBuf::new(), None)
+    }
+}
+
+impl PluginHostState {
+    #[must_use]
+    pub fn new(
+        plugin_name: String,
+        data_folder: PathBuf,
+        proxy: Option<ProxyPluginContext>,
+    ) -> Self {
+        let mut wasi = WasiCtxBuilder::new();
+        wasi.inherit_stdout().inherit_stderr();
+        if !data_folder.as_os_str().is_empty()
+            && let Err(e) = wasi.preopened_dir(&data_folder, DATA_DIR, FsPerms::ReadWrite)
+        {
+            tracing::warn!(
+                "Plugin '{}' gets no data folder; '{}' could not be opened: {}",
+                plugin_name,
+                data_folder.display(),
+                e
+            );
+        }
+        let mut resource_table = ResourceTable::new();
+        resource_table.set_max_capacity(MAX_RESOURCES);
+        Self {
+            wasi_ctx: wasi.build(),
+            resource_table,
+            limits: PluginLimiter::new(usize::MAX),
+            proxy,
+            plugin_name,
+            data_folder,
+            plugin: None,
+            killed: Arc::new(AtomicBool::new(false)),
+            early_translations: Some(Vec::new()),
+            event_cap_warned: false,
+            command_cap_warned: false,
+            translation_keys: HashMap::new(),
+            translations_refused_warned: false,
+        }
+    }
+
+    /// Hands over the translations held back until the plugin is accepted under its name;
+    /// later ones are registered right away
+    pub fn take_early_translations(&mut self) -> Vec<(String, Translations)> {
+        self.early_translations.take().unwrap_or_default()
+    }
+
+    /// Leaves out texts over the length limits and refuses a call that would take the plugin
+    /// past its locale or key limits
+    fn limit_translations(
+        &mut self,
+        locale: &str,
+        entries: Translations,
+    ) -> Result<Translations, String> {
+        if locale.len() > MAX_LOCALE_LEN {
+            return Err(format!("locales are limited to {MAX_LOCALE_LEN} bytes"));
+        }
+        let count = entries.len();
+        let entries: Translations = entries
+            .into_iter()
+            .filter(|(key, text)| {
+                key.len() <= MAX_TRANSLATION_KEY_LEN && text.len() <= MAX_TRANSLATION_TEXT_LEN
+            })
+            .collect();
+        let locale = vine_i18n::normalize(locale);
+        let known = self.translation_keys.get(&locale);
+        if known.is_none() && self.translation_keys.len() >= MAX_TRANSLATION_LOCALES {
+            return Err(format!(
+                "'{locale}' would go over {MAX_TRANSLATION_LOCALES} locales"
+            ));
+        }
+        let added: HashSet<String> = entries
+            .iter()
+            .filter(|(key, _)| known.is_none_or(|keys| !keys.contains(key)))
+            .map(|(key, _)| key.clone())
+            .collect();
+        let total: usize = self.translation_keys.values().map(HashSet::len).sum();
+        if total + added.len() > MAX_TRANSLATIONS {
+            return Err(format!("'{locale}' would go over {MAX_TRANSLATIONS} keys"));
+        }
+        self.translation_keys
+            .entry(locale)
+            .or_default()
+            .extend(added);
+        if entries.len() < count {
+            self.warn_translations_refused(format!(
+                "keys over {MAX_TRANSLATION_KEY_LEN} bytes and texts over \
+                 {MAX_TRANSLATION_TEXT_LEN} bytes are left out"
+            ));
+        }
+        Ok(entries)
+    }
+
+    fn warn_translations_refused(&mut self, reason: String) {
+        if !self.translations_refused_warned {
+            self.translations_refused_warned = true;
+            tracing::warn!(
+                "[Plugin: {}] Ignoring translations: {}; later ones are not reported",
+                self.plugin_name,
+                reason
+            );
+        }
+    }
+
+    pub fn add_context(
+        &mut self,
+        context: Arc<PluginContext>,
+    ) -> wasmtime::Result<Resource<wit::vine::plugin::context::Context>> {
+        let res = self.resource_table.push(ContextResource { context })?;
+        Ok(Resource::new_own(res.rep()))
+    }
+}
+
+impl WasiView for PluginHostState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView {
+            ctx: &mut self.wasi_ctx,
+            table: &mut self.resource_table,
+        }
+    }
+}
+
+impl wit::vine::plugin::types::Host for PluginHostState {}
+impl wit::vine::plugin::metadata::Host for PluginHostState {}
+impl wit::vine::plugin::event::Host for PluginHostState {}
+impl wit::vine::plugin::context::Host for PluginHostState {}
+
+impl wit::vine::plugin::logging::Host for PluginHostState {
+    async fn log(
+        &mut self,
+        level: wit::vine::plugin::logging::Level,
+        message: String,
+    ) -> wasmtime::Result<()> {
+        match level {
+            wit::vine::plugin::logging::Level::Trace => {
+                tracing::trace!("[Plugin: {}] {}", self.plugin_name, message)
+            }
+            wit::vine::plugin::logging::Level::Debug => {
+                tracing::debug!("[Plugin: {}] {}", self.plugin_name, message)
+            }
+            wit::vine::plugin::logging::Level::Info => {
+                tracing::info!("[Plugin: {}] {}", self.plugin_name, message)
+            }
+            wit::vine::plugin::logging::Level::Warn => {
+                tracing::warn!("[Plugin: {}] {}", self.plugin_name, message)
+            }
+            wit::vine::plugin::logging::Level::Error => {
+                tracing::error!("[Plugin: {}] {}", self.plugin_name, message)
+            }
+        }
+        Ok(())
+    }
+}
+
+impl wit::vine::plugin::translation::Host for PluginHostState {
+    async fn register_translations(
+        &mut self,
+        locale: String,
+        entries: Vec<(String, String)>,
+    ) -> wasmtime::Result<()> {
+        let entries = match self.limit_translations(&locale, entries) {
+            Ok(entries) => entries,
+            Err(reason) => {
+                self.warn_translations_refused(reason);
+                return Ok(());
+            }
+        };
+        match &mut self.early_translations {
+            Some(early) => early.push((locale, entries)),
+            // A stopping plugin's texts are about to be dropped
+            None if self
+                .plugin
+                .as_ref()
+                .and_then(Weak::upgrade)
+                .is_some_and(|plugin| plugin.is_stopping()) => {}
+            None => register_translations(&self.plugin_name, locale, entries),
+        }
+        Ok(())
+    }
+
+    async fn translate(
+        &mut self,
+        player_uuid: Option<String>,
+        key: String,
+        args: Vec<String>,
+    ) -> wasmtime::Result<String> {
+        let locale = player_uuid
+            .and_then(|uuid| uuid::Uuid::parse_str(&uuid).ok())
+            .and_then(|uuid| self.proxy.as_ref()?.session_manager.locale_by_uuid(uuid));
+        // Namespaces are stored lowercase, like the folders they come from
+        let key = match key.split_once(':') {
+            Some((namespace, rest)) if namespace.eq_ignore_ascii_case("vine") => rest.to_string(),
+            Some((namespace, rest)) => format!("{}:{rest}", vine_i18n::namespace(namespace)),
+            None => format!("{}:{key}", vine_i18n::namespace(&self.plugin_name)),
+        };
+        let args: Vec<&(dyn std::fmt::Display + Sync)> = args
+            .iter()
+            .map(|arg| arg as &(dyn std::fmt::Display + Sync))
+            .collect();
+        Ok(vine_i18n::translate(locale.as_deref(), &key, &args))
+    }
+
+    async fn get_player_locale(&mut self, player_uuid: String) -> wasmtime::Result<Option<String>> {
+        Ok(uuid::Uuid::parse_str(&player_uuid)
+            .ok()
+            .and_then(|uuid| self.proxy.as_ref()?.session_manager.locale_by_uuid(uuid)))
+    }
+
+    async fn set_player_locale(
+        &mut self,
+        player_uuid: String,
+        locale: Option<String>,
+    ) -> wasmtime::Result<bool> {
+        let (Some(proxy), Ok(uuid)) = (&self.proxy, uuid::Uuid::parse_str(&player_uuid)) else {
+            return Ok(false);
+        };
+        Ok(proxy
+            .session_manager
+            .set_locale_override(uuid, locale.as_deref()))
+    }
+}
+
+impl wit::vine::plugin::command::Host for PluginHostState {
+    async fn reply(
+        &mut self,
+        sender: wit::vine::plugin::types::CommandSender,
+        message: String,
+    ) -> wasmtime::Result<()> {
+        if let Some(proxy) = &self.proxy {
+            match sender.sender_type {
+                wit::vine::plugin::types::CommandSenderType::Console => {
+                    tracing::info!("[Console] {}", message);
+                }
+                wit::vine::plugin::types::CommandSenderType::Player => {
+                    if let Some(uuid_str) = sender.player_uuid
+                        && let Ok(target_uuid) = uuid::Uuid::parse_str(&uuid_str)
+                        && let Some(session) = proxy
+                            .session_manager
+                            .list_sessions()
+                            .into_iter()
+                            .find(|s| s.uuid == target_uuid)
+                    {
+                        let _ = session.action_tx.try_send(PlayerAction::Message(
+                            vine_protocol::text::parse_message(&message),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl wit::vine::plugin::proxy::Host for PluginHostState {
+    async fn get_player_count(&mut self) -> wasmtime::Result<u32> {
+        Ok(self
+            .proxy
+            .as_ref()
+            .map(|p| p.session_manager.count() as u32)
+            .unwrap_or(0))
+    }
+
+    async fn get_players(&mut self) -> wasmtime::Result<Vec<wit::vine::plugin::types::PlayerInfo>> {
+        if let Some(proxy) = &self.proxy {
+            let list = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .map(|s| wit::vine::plugin::types::PlayerInfo {
+                    uuid: s.uuid.to_string(),
+                    username: s.username,
+                    current_server: s.current_server,
+                    client_ip: s.client_ip,
+                    protocol_version: s.protocol_version,
+                })
+                .collect();
+            Ok(list)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    async fn get_player_by_name(
+        &mut self,
+        username: String,
+    ) -> wasmtime::Result<Option<wit::vine::plugin::types::PlayerInfo>> {
+        if let Some(proxy) = &self.proxy {
+            let session = proxy.session_manager.get_session(&username);
+            Ok(session.map(|s| wit::vine::plugin::types::PlayerInfo {
+                uuid: s.uuid.to_string(),
+                username: s.username,
+                current_server: s.current_server,
+                client_ip: s.client_ip,
+                protocol_version: s.protocol_version,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_player_by_uuid(
+        &mut self,
+        uuid: String,
+    ) -> wasmtime::Result<Option<wit::vine::plugin::types::PlayerInfo>> {
+        if let Some(proxy) = &self.proxy
+            && let Ok(target_uuid) = uuid::Uuid::parse_str(&uuid)
+        {
+            let session = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .find(|s| s.uuid == target_uuid);
+            return Ok(session.map(|s| wit::vine::plugin::types::PlayerInfo {
+                uuid: s.uuid.to_string(),
+                username: s.username,
+                current_server: s.current_server,
+                client_ip: s.client_ip,
+                protocol_version: s.protocol_version,
+            }));
+        }
+        Ok(None)
+    }
+
+    async fn get_servers(&mut self) -> wasmtime::Result<Vec<wit::vine::plugin::types::ServerInfo>> {
+        if let Some(proxy) = &self.proxy {
+            let sessions = proxy.session_manager.list_sessions();
+            let mut list = Vec::new();
+            for (name, srv) in &proxy.config.servers {
+                let player_count = sessions
+                    .iter()
+                    .filter(|s| s.current_server == *name)
+                    .count() as u32;
+                list.push(wit::vine::plugin::types::ServerInfo {
+                    name: name.clone(),
+                    address: srv.address.clone(),
+                    player_count,
+                });
+            }
+            Ok(list)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    async fn broadcast(&mut self, message: String) -> wasmtime::Result<()> {
+        if let Some(proxy) = &self.proxy {
+            for session in proxy.session_manager.list_sessions() {
+                let _ = session.action_tx.try_send(PlayerAction::Message(
+                    vine_protocol::text::parse_message(&message),
+                ));
+            }
+            tracing::info!("[Broadcast] {}", message);
+        }
+        Ok(())
+    }
+
+    async fn send_message(
+        &mut self,
+        player_uuid: String,
+        message: String,
+    ) -> wasmtime::Result<bool> {
+        if let Some(proxy) = &self.proxy
+            && let Ok(target_uuid) = uuid::Uuid::parse_str(&player_uuid)
+            && let Some(session) = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .find(|s| s.uuid == target_uuid)
+        {
+            return Ok(session
+                .action_tx
+                .try_send(PlayerAction::Message(vine_protocol::text::parse_message(
+                    &message,
+                )))
+                .is_ok());
+        }
+        Ok(false)
+    }
+
+    async fn disconnect_player(
+        &mut self,
+        player_uuid: String,
+        reason: String,
+    ) -> wasmtime::Result<bool> {
+        if let Some(proxy) = &self.proxy
+            && let Ok(target_uuid) = uuid::Uuid::parse_str(&player_uuid)
+            && let Some(session) = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .find(|s| s.uuid == target_uuid)
+        {
+            return Ok(send_from_plugin(&session, PlayerAction::Disconnect(reason)));
+        }
+        Ok(false)
+    }
+
+    async fn connect_player(
+        &mut self,
+        player_uuid: String,
+        server_name: String,
+    ) -> wasmtime::Result<bool> {
+        if let Some(proxy) = &self.proxy
+            && proxy.config.servers.contains_key(&server_name)
+            && let Ok(target_uuid) = uuid::Uuid::parse_str(&player_uuid)
+            && let Some(session) = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .find(|s| s.uuid == target_uuid)
+        {
+            return Ok(send_from_plugin(
+                &session,
+                PlayerAction::Connect { server_name },
+            ));
+        }
+        Ok(false)
+    }
+
+    async fn send_plugin_message(
+        &mut self,
+        player_uuid: String,
+        channel: String,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<bool> {
+        if let Some(proxy) = &self.proxy
+            && let Ok(target_uuid) = uuid::Uuid::parse_str(&player_uuid)
+            && let Some(session) = proxy
+                .session_manager
+                .list_sessions()
+                .into_iter()
+                .find(|s| s.uuid == target_uuid)
+        {
+            return Ok(session
+                .action_tx
+                .try_send(PlayerAction::PluginMessage { channel, data })
+                .is_ok());
+        }
+        Ok(false)
+    }
+}
+
+impl wit::vine::plugin::context::HostContext for PluginHostState {
+    async fn register_event(
+        &mut self,
+        _context: Resource<wit::vine::plugin::context::Context>,
+        handler_id: u32,
+        event_type: wit::vine::plugin::event::EventType,
+        priority: wit::vine::plugin::types::EventPriority,
+    ) -> wasmtime::Result<()> {
+        let plugin = self
+            .plugin
+            .as_ref()
+            .and_then(|p| p.upgrade())
+            .ok_or_else(|| wasmtime::Error::msg("Plugin reference is no longer valid"))?;
+
+        let api_event_type = match event_type {
+            wit::vine::plugin::event::EventType::ProxyPing => EventType::ProxyPing,
+            wit::vine::plugin::event::EventType::PlayerPreLogin => EventType::PlayerPreLogin,
+            wit::vine::plugin::event::EventType::PlayerLogin => EventType::PlayerLogin,
+            wit::vine::plugin::event::EventType::PlayerJoin => EventType::PlayerJoin,
+            wit::vine::plugin::event::EventType::ServerConnect => EventType::ServerConnect,
+            wit::vine::plugin::event::EventType::ServerConnected => EventType::ServerConnected,
+            wit::vine::plugin::event::EventType::PlayerDisconnect => EventType::PlayerDisconnect,
+            wit::vine::plugin::event::EventType::PlayerChat => EventType::PlayerChat,
+            wit::vine::plugin::event::EventType::PlayerCommand => EventType::PlayerCommand,
+            wit::vine::plugin::event::EventType::PluginMessage => EventType::PluginMessage,
+        };
+
+        let api_priority = match priority {
+            wit::vine::plugin::types::EventPriority::Lowest => EventPriority::Lowest,
+            wit::vine::plugin::types::EventPriority::Low => EventPriority::Low,
+            wit::vine::plugin::types::EventPriority::Normal => EventPriority::Normal,
+            wit::vine::plugin::types::EventPriority::High => EventPriority::High,
+            wit::vine::plugin::types::EventPriority::Highest => EventPriority::Highest,
+            wit::vine::plugin::types::EventPriority::Monitor => EventPriority::Monitor,
+        };
+
+        if let Some(proxy) = &self.proxy
+            && !proxy
+                .plugin_manager
+                .register_event_handler(api_event_type, api_priority, handler_id, plugin)
+                .await
+            && !self.event_cap_warned
+        {
+            self.event_cap_warned = true;
+            tracing::warn!(
+                "[Plugin: {}] Ignoring event handlers beyond the first {}",
+                self.plugin_name,
+                crate::plugin::MAX_EVENT_HANDLERS
+            );
+        }
+        Ok(())
+    }
+
+    async fn register_command(
+        &mut self,
+        _context: Resource<wit::vine::plugin::context::Context>,
+        command_id: u32,
+        name: String,
+        description: String,
+        aliases: Vec<String>,
+        permission: Option<String>,
+    ) -> wasmtime::Result<()> {
+        let plugin = self
+            .plugin
+            .as_ref()
+            .and_then(|p| p.upgrade())
+            .ok_or_else(|| wasmtime::Error::msg("Plugin reference is no longer valid"))?;
+
+        if let Some(proxy) = &self.proxy
+            && !proxy
+                .plugin_manager
+                .register_command(command_id, name, description, aliases, permission, plugin)
+                .await
+            && !self.command_cap_warned
+        {
+            self.command_cap_warned = true;
+            tracing::warn!(
+                "[Plugin: {}] Ignoring command names and aliases beyond the first {}",
+                self.plugin_name,
+                crate::plugin::MAX_COMMAND_NAMES
+            );
+        }
+        Ok(())
+    }
+
+    async fn get_data_folder(
+        &mut self,
+        _context: Resource<wit::vine::plugin::context::Context>,
+    ) -> wasmtime::Result<String> {
+        Ok(DATA_DIR.to_string())
+    }
+
+    async fn drop(
+        &mut self,
+        rep: Resource<wit::vine::plugin::context::Context>,
+    ) -> wasmtime::Result<()> {
+        let _ = self
+            .resource_table
+            .delete::<ContextResource>(Resource::new_own(rep.rep()));
+        Ok(())
+    }
+}
+
+pub fn register_translations(plugin_name: &str, locale: String, entries: Translations) {
+    if let Err(e) = vine_i18n::register(&vine_i18n::namespace(plugin_name), &locale, entries) {
+        tracing::warn!(
+            "[Plugin: {}] Could not register '{}' translations: {}",
+            plugin_name,
+            locale,
+            e
+        );
+    }
+}

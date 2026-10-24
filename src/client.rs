@@ -9,33 +9,33 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
-use crate::auth::{
+use crate::backend::{BackendBridge, Router};
+use crate::status::StatusHandler;
+use vine_auth::{
     AuthError, AuthenticatedPlayer, Authenticator, IdentifiedKey, KeyRevision, KeyStore,
     verify_signed_token,
 };
-use crate::backend::{BackendBridge, Router};
-use crate::command::CommandDispatcher;
-use crate::config::Config;
-use crate::i18n::translate;
-use crate::network::PrefixedRead;
-use crate::plugin::PluginManager;
-use crate::plugin::api::{
+use vine_config::Config;
+use vine_i18n::translate;
+use vine_network::PrefixedRead;
+use vine_plugin::command::CommandDispatcher;
+use vine_plugin::plugin::PluginManager;
+use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerLoginEvent, PlayerPreLoginEvent, ProxyPingEvent,
 };
-use crate::protocol::packets::handshake::{Handshake, HandshakeIntent};
-use crate::protocol::packets::login::{
+use vine_plugin::session::{PlayerSession, SessionManager};
+use vine_protocol::packets::handshake::{Handshake, HandshakeIntent};
+use vine_protocol::packets::login::{
     EncryptionRequest, EncryptionResponse, LoginDisconnect, LoginStart, SetCompression,
     Verification,
 };
-use crate::protocol::packets::status::{PingRequest, PongResponse};
-use crate::protocol::text::{component_json, parse_message};
-use crate::protocol::{
+use vine_protocol::packets::status::{PingRequest, PongResponse};
+use vine_protocol::text::{component_json, parse_message};
+use vine_protocol::{
     PacketKind, PacketReader, PacketWriter, ProtocolError, ProtocolVersion, decode_packet,
     encode_packet,
 };
-use crate::security::Sanitizer;
-use crate::session::{PlayerSession, SessionManager};
-use crate::status::StatusHandler;
+use vine_security::Sanitizer;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -51,8 +51,7 @@ pub enum ClientError {
     Timeout,
 }
 
-// Covers the handshake, status and every login packet a client sends, profile keys included
-pub const LOGIN_PACKET_LIMIT: usize = 8 * 1024;
+pub use vine_config::LOGIN_PACKET_LIMIT;
 
 type ClientReader = PacketReader<PrefixedRead<OwnedReadHalf>>;
 type ClientWriter = PacketWriter<OwnedWriteHalf>;
@@ -564,7 +563,7 @@ impl ClientHandler {
             None
         };
 
-        let (action_tx, action_rx) = tokio::sync::mpsc::channel(crate::session::ACTION_QUEUE);
+        let (action_tx, action_rx) = tokio::sync::mpsc::channel(vine_plugin::session::ACTION_QUEUE);
         let Some(_session_guard) = self.session_manager.try_register(PlayerSession {
             username: authenticated_player.username.clone(),
             uuid: authenticated_player.id,

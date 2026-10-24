@@ -6,6 +6,7 @@ ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY crates ./crates
 COPY wit ./wit
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

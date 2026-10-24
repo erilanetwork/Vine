@@ -10,28 +10,28 @@ use super::client_queue::ClientQueue;
 use super::login::BackendReader;
 use super::suggestions::{PendingSuggestion, Suggest, SuggestionRequest};
 use super::tunnel::Served;
-use crate::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
-use crate::config::Config;
-use crate::i18n::translate;
-use crate::plugin::PluginManager;
-use crate::plugin::api::{
+use vine_config::Config;
+use vine_i18n::translate;
+use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
+use vine_plugin::plugin::PluginManager;
+use vine_plugin::plugin::api::{
     PlayerChatEvent, PlayerCommandEvent, PluginMessageEvent, PluginMessageSource,
 };
-use crate::protocol::packets::config::ConfigDisconnect;
-use crate::protocol::packets::play::{
+use vine_plugin::session::{PlayerAction, SessionManager};
+use vine_protocol::packets::config::ConfigDisconnect;
+use vine_protocol::packets::play::{
     ChatAcknowledgement, ChatCommand, ChatMessage, ClientInformation, CommandSuggestionRequest,
     ConfigClientInformation, InjectedCommand, PlayDisconnect, PlayKeepAliveResponse,
     SignedChatCommand, chat_length_limit, chat_signing, command_length_limit, inject_commands,
     read_plugin_message, replace_leading_string, write_plugin_message,
 };
-use crate::protocol::text::plain_text;
-use crate::protocol::{
+use vine_protocol::text::plain_text;
+use vine_protocol::{
     Frame, PacketKind, PacketReader, ProtocolVersion, decode_packet, encode_packet,
 };
-use crate::security::PacketRateLimiter;
-use crate::session::{PlayerAction, SessionManager};
+use vine_security::PacketRateLimiter;
 fn client_locale(
-    packet: &crate::protocol::RawPacket,
+    packet: &vine_protocol::RawPacket,
     phase: Phase,
     version: ProtocolVersion,
 ) -> Option<String> {
@@ -57,7 +57,7 @@ pub(super) enum Setting {
 }
 
 fn client_setting(
-    packet: &crate::protocol::RawPacket,
+    packet: &vine_protocol::RawPacket,
     phase: Phase,
     version: ProtocolVersion,
 ) -> Option<Setting> {
@@ -211,7 +211,7 @@ impl Session {
     /// Works out what a packet from the client becomes; `None` when it is swallowed
     async fn client_packet(
         &self,
-        mut raw_packet: crate::protocol::RawPacket,
+        mut raw_packet: vine_protocol::RawPacket,
         phase: &mut Phase,
         served: &Served,
     ) -> Option<ClientEvent> {
@@ -415,11 +415,7 @@ impl Session {
 
     // The backend tracks which chat messages the client has seen through these packets, so one the
     // proxy drops must still hand its acknowledgements on, and a signed one cannot be dropped at all
-    fn swallow_chat(
-        &self,
-        packet: &crate::protocol::RawPacket,
-        served: u64,
-    ) -> Option<ClientEvent> {
+    fn swallow_chat(&self, packet: &vine_protocol::RawPacket, served: u64) -> Option<ClientEvent> {
         let version = self.version;
         let kind = if PacketKind::ChatCommand.matches(packet.id, version) {
             PacketKind::ChatCommand
@@ -454,7 +450,7 @@ impl Session {
     }
 
     /// Returns the reason to kick the player for, if the message cannot be changed
-    fn rewrite_chat(&self, packet: &mut crate::protocol::RawPacket, text: &str) -> Option<String> {
+    fn rewrite_chat(&self, packet: &mut vine_protocol::RawPacket, text: &str) -> Option<String> {
         let version = self.version;
         let kind = if PacketKind::ChatCommand.matches(packet.id, version) {
             PacketKind::ChatCommand
@@ -501,7 +497,7 @@ impl Session {
     /// Returns false when a plugin cancelled the message.
     async fn plugin_message_event(
         &self,
-        packet: &mut crate::protocol::RawPacket,
+        packet: &mut vine_protocol::RawPacket,
         server_name: &str,
         source: PluginMessageSource,
     ) -> bool {
@@ -542,7 +538,7 @@ pub(super) enum BackendEvent {
     /// with the room already taken for it; the reader goes on once `done` is answered, so
     /// nothing it reads later overtakes it.
     Packet {
-        packet: crate::protocol::RawPacket,
+        packet: vine_protocol::RawPacket,
         watched: Watched,
         permit: OwnedSemaphorePermit,
         done: oneshot::Sender<()>,
@@ -712,7 +708,7 @@ impl Session {
     /// StartConfiguration, as the client does on reading them.
     async fn backend_packet(
         &self,
-        mut raw_packet: crate::protocol::RawPacket,
+        mut raw_packet: vine_protocol::RawPacket,
         server_name: &str,
         phase: &mut Phase,
         events: &mpsc::Sender<BackendEvent>,
@@ -768,7 +764,7 @@ impl Session {
                     .collect();
                 packet = inject_commands(&raw_packet.payload, version, &injected).map(
                     |modified_payload| {
-                        crate::protocol::RawPacket {
+                        vine_protocol::RawPacket {
                             id: raw_packet.id,
                             payload: modified_payload.into(),
                         }
@@ -789,7 +785,7 @@ impl Session {
     /// Hands a packet to the tunnel and waits until it has been queued for the client
     async fn through_tunnel(
         &self,
-        packet: crate::protocol::RawPacket,
+        packet: vine_protocol::RawPacket,
         watched: Watched,
         events: &mpsc::Sender<BackendEvent>,
     ) -> Result<(), Option<BackendEvent>> {

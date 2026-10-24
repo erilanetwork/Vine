@@ -5,9 +5,9 @@ use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
-use crate::auth::{AuthenticatedPlayer, IdentifiedKey, KeyRevision};
-use crate::protocol::ProtocolVersion;
-use crate::protocol::wire::WriteExt;
+use vine_auth::{AuthenticatedPlayer, IdentifiedKey, KeyRevision};
+use vine_protocol::ProtocolVersion;
+use vine_protocol::wire::WriteExt;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -273,7 +273,7 @@ mod tests {
     fn test_velocity_payload_carries_linked_key() {
         let holder = Uuid::from_u128(7);
         let mut key = IdentifiedKey::new(
-            crate::protocol::packets::login::ProfileKey {
+            vine_protocol::packets::login::ProfileKey {
                 expires_at: 42,
                 public_key: vec![1, 2, 3],
                 key_signature: vec![4, 5],
@@ -310,7 +310,7 @@ mod tests {
         let generic = ProtocolVersion::V1_19;
         let key = |version| {
             IdentifiedKey::new(
-                crate::protocol::packets::login::ProfileKey {
+                vine_protocol::packets::login::ProfileKey {
                     expires_at: 0,
                     public_key: vec![],
                     key_signature: vec![],

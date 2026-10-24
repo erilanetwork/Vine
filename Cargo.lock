@@ -3074,28 +3074,19 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vine"
 version = "0.1.0"
 dependencies = [
- "aes",
  "axum",
  "base64 0.23.1",
  "bytes",
- "cfb8",
  "ed25519-dalek",
- "flate2",
  "hex",
  "hmac",
- "num-bigint",
  "pumpkin-auth",
- "pumpkin-command",
- "pumpkin-plugin-runtime",
  "pumpkin-util",
  "rand",
  "reqwest",
- "rsa",
  "serde",
  "serde_json",
- "sha1",
  "sha2 0.11.0",
- "socket2",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.20",
@@ -3104,9 +3095,119 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "vine-auth",
+ "vine-bedrock",
+ "vine-config",
+ "vine-i18n",
+ "vine-network",
+ "vine-plugin",
+ "vine-protocol",
+ "vine-security",
+]
+
+[[package]]
+name = "vine-auth"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "hex",
+ "num-bigint",
+ "pumpkin-auth",
+ "rand",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.11.0",
+ "thiserror 2.0.20",
+ "tracing",
+ "uuid",
+ "vine-protocol",
+]
+
+[[package]]
+name = "vine-bedrock"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "tokio",
+ "tracing",
+ "vine-config",
+ "vine-protocol",
+ "vine-security",
+]
+
+[[package]]
+name = "vine-config"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rand",
+ "serde",
+ "tempfile",
+ "toml",
+ "tracing",
+ "vine-network",
+]
+
+[[package]]
+name = "vine-i18n"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "vine-network"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "socket2",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "vine-plugin"
+version = "0.1.0"
+dependencies = [
+ "pumpkin-command",
+ "pumpkin-plugin-runtime",
+ "pumpkin-util",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "uuid",
+ "vine-config",
+ "vine-i18n",
+ "vine-protocol",
  "wasmtime",
  "wasmtime-wasi",
 ]
+
+[[package]]
+name = "vine-protocol"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "bytes",
+ "cfb8",
+ "flate2",
+ "pumpkin-util",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "vine-security"
+version = "0.1.0"
 
 [[package]]
 name = "walkdir"

@@ -148,7 +148,7 @@ jobs:
           elif [ "$REF_TYPE" == "tag" ]; then
             TAG="$REF_NAME"
           else
-            VERSION=$(awk -F '"' '/^version/ {print $2}' Cargo.toml)
+            VERSION=$(awk -F '"' '/^version = / {print $2}' Cargo.toml)
             TAG="${VERSION}"
           fi
           echo "tag_name=${TAG}" >> $GITHUB_OUTPUT

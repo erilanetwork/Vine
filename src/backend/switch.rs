@@ -6,8 +6,8 @@ use tokio::sync::oneshot;
 use super::bridge::{BackendBridge, BridgeError};
 use super::login::PreparedBackend;
 use super::task::Task;
-use crate::config::BackendConfig;
-use crate::plugin::api::ServerConnectEvent;
+use vine_config::BackendConfig;
+use vine_plugin::plugin::api::ServerConnectEvent;
 /// A move to another backend, from being asked for to the client being handed over
 pub(super) enum Switch {
     Idle,

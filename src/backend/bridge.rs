@@ -16,24 +16,24 @@ use super::suggestions::Suggesting;
 use super::switch::Switch;
 use super::task::Task;
 use super::tunnel::{ClientSettings, End, Link, Served, Tunnel};
-use crate::auth::AuthenticatedPlayer;
-use crate::command::CommandDispatcher;
-use crate::config::{BackendConfig, Config, NetworkConfig};
-use crate::i18n::translate;
-use crate::plugin::PluginManager;
-use crate::plugin::api::{
+use vine_auth::AuthenticatedPlayer;
+use vine_config::{BackendConfig, Config, NetworkConfig};
+use vine_i18n::translate;
+use vine_plugin::command::CommandDispatcher;
+use vine_plugin::plugin::PluginManager;
+use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerJoinEvent, ServerConnectEvent, ServerConnectedEvent,
 };
-use crate::protocol::packets::config::ConfigDisconnect;
-use crate::protocol::packets::login::LoginDisconnect;
-use crate::protocol::packets::play::PlayDisconnect;
-use crate::protocol::packets::switch::Leftovers;
-use crate::protocol::text::{component_json, parse_message};
-use crate::protocol::{
+use vine_plugin::session::{PlayerAction, SessionManager};
+use vine_protocol::packets::config::ConfigDisconnect;
+use vine_protocol::packets::login::LoginDisconnect;
+use vine_protocol::packets::play::PlayDisconnect;
+use vine_protocol::packets::switch::Leftovers;
+use vine_protocol::text::{component_json, parse_message};
+use vine_protocol::{
     Packet, PacketReader, PacketWriter, ProtocolError, ProtocolVersion, encode_packet,
 };
-use crate::security::PacketRateLimiter;
-use crate::session::{PlayerAction, SessionManager};
+use vine_security::PacketRateLimiter;
 #[derive(Error, Debug)]
 pub enum BridgeError {
     #[error("Failed to connect to backend server '{0}': {1}")]

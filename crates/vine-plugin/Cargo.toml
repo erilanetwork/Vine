@@ -1,0 +1,25 @@
+[package]
+name = "vine-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+vine-config.workspace = true
+vine-i18n.workspace = true
+vine-protocol.workspace = true
+pumpkin-util.workspace = true
+pumpkin-command.workspace = true
+pumpkin-plugin-runtime.workspace = true
+wasmtime.workspace = true
+wasmtime-wasi.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

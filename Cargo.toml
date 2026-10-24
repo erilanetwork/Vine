@@ -1,11 +1,23 @@
-[package]
-name = "vine"
+[workspace]
+members = ["crates/*"]
+default-members = [".", "crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.96"
 license = "GPL-3.0"
 
-[dependencies]
+[workspace.dependencies]
+vine-protocol = { path = "crates/vine-protocol" }
+vine-i18n = { path = "crates/vine-i18n" }
+vine-security = { path = "crates/vine-security" }
+vine-network = { path = "crates/vine-network" }
+vine-config = { path = "crates/vine-config" }
+vine-auth = { path = "crates/vine-auth" }
+vine-bedrock = { path = "crates/vine-bedrock" }
+vine-plugin = { path = "crates/vine-plugin" }
+
 pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
 pumpkin-auth = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
 pumpkin-command = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
@@ -45,10 +57,48 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no
 
 # Telemetry & System Info
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-
-[dev-dependencies]
 tempfile = "3"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+
+[package]
+name = "vine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+vine-protocol.workspace = true
+vine-i18n.workspace = true
+vine-security.workspace = true
+vine-network.workspace = true
+vine-config.workspace = true
+vine-auth.workspace = true
+vine-bedrock.workspace = true
+vine-plugin.workspace = true
+pumpkin-util.workspace = true
+pumpkin-auth.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+bytes.workspace = true
+uuid.workspace = true
+rand.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+base64.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+sysinfo.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+axum.workspace = true
 
 [profile.release]
 lto = true

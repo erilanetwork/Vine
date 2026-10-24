@@ -168,7 +168,7 @@ impl StatusIconManager {
     /// Resolves which icon path applies based on the virtual host or default
     fn resolve_icon_path(&self, host: Option<&str>) -> Option<PathBuf> {
         if let Some(h) = host {
-            let normalized = crate::config::normalize_host(h);
+            let normalized = vine_config::normalize_host(h);
             let clean_host = normalized.as_str();
 
             if let Some(target_server) = self.forced_hosts.get(clean_host)

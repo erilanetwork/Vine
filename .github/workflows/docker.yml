@@ -115,7 +115,7 @@ jobs:
       - name: Extract Versions
         id: versions
         run: |
-          VERSION=$(awk -F '"' '/^version/ {print $2}' Cargo.toml)
+          VERSION=$(awk -F '"' '/^version = / {print $2}' Cargo.toml)
           echo "VINE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Login to GitHub CR

@@ -9,7 +9,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::config::Config;
+use vine_config::Config;
 
 /// Filename used to persist the telemetry identity key across restarts.
 pub const IDENTITY_KEY_PATH: &str = ".vine/identity.key";
@@ -358,7 +358,7 @@ pub fn build_heartbeat_payload(config: &Config, online_players: usize) -> Heartb
         (0, 0, "Unknown".to_string())
     };
 
-    let mc_ver = crate::protocol::ProtocolVersion(config.motd.protocol_version.max(0) as u32);
+    let mc_ver = vine_protocol::ProtocolVersion(config.motd.protocol_version.max(0) as u32);
     let minecraft_version = if mc_ver.is_known() {
         mc_ver.name()
     } else {

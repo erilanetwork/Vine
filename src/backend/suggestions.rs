@@ -5,10 +5,10 @@ use bytes::Bytes;
 use pumpkin_util::text::TextComponent;
 
 use super::readers::Session;
-use crate::command::ProxyCommandSource;
-use crate::protocol::packets::play::{CommandSuggestions, Suggestion};
-use crate::protocol::text::component_json;
-use crate::protocol::{ProtocolVersion, encode_packet};
+use vine_plugin::command::ProxyCommandSource;
+use vine_protocol::packets::play::{CommandSuggestions, Suggestion};
+use vine_protocol::text::component_json;
+use vine_protocol::{ProtocolVersion, encode_packet};
 pub(super) struct SuggestionRequest {
     pub(super) id: i32,
     pub(super) input: String,

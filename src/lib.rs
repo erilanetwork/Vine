@@ -1,19 +1,18 @@
-pub mod auth;
 pub mod backend;
-pub mod bedrock;
 pub mod client;
-pub mod command;
-pub mod config;
-pub mod i18n;
-pub mod network;
-pub mod permissions;
-pub mod plugin;
-pub mod protocol;
 pub mod proxy;
-pub mod security;
-pub mod session;
 pub mod status;
 pub mod telemetry;
+
+pub use vine_auth as auth;
+pub use vine_bedrock as bedrock;
+pub use vine_config as config;
+pub use vine_config::permissions;
+pub use vine_i18n as i18n;
+pub use vine_network as network;
+pub use vine_plugin::{command, plugin, session};
+pub use vine_protocol as protocol;
+pub use vine_security as security;
 
 pub use config::Config;
 pub use proxy::ProxyServer;

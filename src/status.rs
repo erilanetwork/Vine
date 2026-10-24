@@ -6,11 +6,11 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::config::{BackendConfig, MotdConfig};
-use crate::protocol::ProtocolVersion;
-use crate::protocol::packets::status::StatusResponse;
-use crate::protocol::text::{component_json, parse_message};
 use tracing::warn;
+use vine_config::{BackendConfig, MotdConfig};
+use vine_protocol::ProtocolVersion;
+use vine_protocol::packets::status::StatusResponse;
+use vine_protocol::text::{component_json, parse_message};
 
 const MAX_STATUS_LEN: usize = 32767;
 pub use icon::StatusIconManager;
@@ -70,7 +70,7 @@ impl StatusHandler {
     /// Resolves MOTD description for the virtual host or falls back to global default
     pub fn resolve_motd_text(&self, host: Option<&str>) -> String {
         if let Some(h) = host {
-            let normalized = crate::config::normalize_host(h);
+            let normalized = vine_config::normalize_host(h);
             let clean_host = normalized.as_str();
 
             let target_server: Option<&str> = self
@@ -163,7 +163,7 @@ impl StatusHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ForwardingMode;
+    use vine_config::ForwardingMode;
 
     #[test]
     fn test_status_response_with_icon_and_virtual_hosts() {

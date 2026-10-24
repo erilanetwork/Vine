@@ -1,0 +1,12 @@
+[package]
+name = "vine-network"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+tracing.workspace = true
+socket2.workspace = true

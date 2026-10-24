@@ -17,17 +17,17 @@ use super::switch::{
     client_timeout, job_ended, switch_progress,
 };
 use super::task::Task;
-use crate::i18n::translate;
-use crate::plugin::api::ServerConnectedEvent;
-use crate::protocol::packets::login::LoginAcknowledged;
-use crate::protocol::packets::play::{
+use vine_i18n::translate;
+use vine_plugin::plugin::api::ServerConnectedEvent;
+use vine_plugin::session::PlayerAction;
+use vine_protocol::packets::login::LoginAcknowledged;
+use vine_protocol::packets::play::{
     ClientboundPluginMessage, CommandSuggestions, PlayKeepAlive, StartConfiguration, SystemChat,
     write_plugin_message,
 };
-use crate::protocol::packets::switch::{Leftovers, join_game_sequence};
-use crate::protocol::text::{component_json, parse_message};
-use crate::protocol::{PacketKind, ProtocolVersion, decode_packet, encode_packet};
-use crate::session::PlayerAction;
+use vine_protocol::packets::switch::{Leftovers, join_game_sequence};
+use vine_protocol::text::{component_json, parse_message};
+use vine_protocol::{PacketKind, ProtocolVersion, decode_packet, encode_packet};
 /// Where the client is in the connection's phases
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Link {
@@ -349,7 +349,7 @@ impl Tunnel {
     /// A packet from the backend whose effect on the session is decided here before it is queued
     fn backend_packet(
         &mut self,
-        packet: crate::protocol::RawPacket,
+        packet: vine_protocol::RawPacket,
         watched: Watched,
         permit: OwnedSemaphorePermit,
     ) {
@@ -873,7 +873,7 @@ impl ClientSettings {
             let mut payload = Vec::new();
             write_plugin_message(&mut payload, BRAND_CHANNEL, data, version);
             packets.push(
-                crate::protocol::RawPacket {
+                vine_protocol::RawPacket {
                     id,
                     payload: payload.into(),
                 }
@@ -884,7 +884,7 @@ impl ClientSettings {
             && let Some(id) = PacketKind::ConfigClientInformation.id(version)
         {
             packets.push(
-                crate::protocol::RawPacket {
+                vine_protocol::RawPacket {
                     id,
                     payload: payload.clone(),
                 }

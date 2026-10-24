@@ -6,18 +6,18 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-use crate::auth::{Authenticator, KeyStore};
 use crate::backend::Router;
 use crate::backend::forwarding::ForwardingHelper;
 use crate::client::ClientHandler;
-use crate::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
-use crate::config::{Config, ForwardingMode};
-use crate::i18n::translate;
 use crate::network;
-use crate::security::ConnectionRateLimiter;
-use crate::session::{PlayerAction, SessionManager, send_reliably};
 use crate::status::{StatusHandler, StatusIconManager};
 use crate::telemetry;
+use vine_auth::{Authenticator, KeyStore};
+use vine_config::{Config, ForwardingMode};
+use vine_i18n::translate;
+use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
+use vine_plugin::session::{PlayerAction, SessionManager, send_reliably};
+use vine_security::ConnectionRateLimiter;
 
 pub struct ProxyServer {
     config: Arc<Config>,
@@ -29,7 +29,7 @@ pub struct ProxyServer {
     online_players: Arc<AtomicUsize>,
     session_manager: Arc<SessionManager>,
     command_dispatcher: Arc<CommandDispatcher>,
-    plugin_manager: Arc<crate::plugin::PluginManager>,
+    plugin_manager: Arc<vine_plugin::plugin::PluginManager>,
 }
 
 impl ProxyServer {
@@ -72,7 +72,7 @@ impl ProxyServer {
 
         let plugins_dir = std::path::PathBuf::from(&config.plugins.plugin_dir);
         let plugin_manager =
-            crate::plugin::PluginManager::new(plugins_dir, (&config.plugins).into())?;
+            vine_plugin::plugin::PluginManager::new(plugins_dir, (&config.plugins).into())?;
         plugin_manager.init_proxy_context(
             config.clone(),
             session_manager.clone(),
@@ -107,7 +107,7 @@ impl ProxyServer {
         info!("  Online mode: {}", self.config.server.online_mode);
         info!(
             "  Supported Minecraft versions: {}",
-            crate::protocol::ProtocolVersion::supported_range()
+            vine_protocol::ProtocolVersion::supported_range()
         );
         info!("  Networking options:");
         info!("    - TCP_NODELAY: {}", self.config.network.tcp_nodelay);
@@ -199,7 +199,7 @@ impl ProxyServer {
             let bedrock_shutdown = shutdown_rx.resubscribe();
 
             tokio::spawn(async move {
-                if let Err(e) = crate::bedrock::run_bedrock_listener(
+                if let Err(e) = vine_bedrock::run_bedrock_listener(
                     bedrock_cfg,
                     online_players,
                     bedrock_shutdown,

@@ -11,8 +11,8 @@ mod tunnel;
 
 pub use bridge::{BackendBridge, BridgeError};
 
-use crate::config::{BackendConfig, RoutingConfig, normalize_host};
 use std::collections::HashMap;
+use vine_config::{BackendConfig, RoutingConfig, normalize_host};
 
 pub struct Router {
     routing: RoutingConfig,

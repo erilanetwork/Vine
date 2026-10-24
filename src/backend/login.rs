@@ -11,13 +11,13 @@ use super::switch::SWITCH_ACK_TIMEOUT;
 use crate::backend::forwarding::{
     ForwardingHelper, VELOCITY_PLAYER_INFO_CHANNEL, VINE_PLAYER_INFO_CHANNEL,
 };
-use crate::config::{BackendConfig, ForwardingMode};
 use crate::network;
-use crate::protocol::packets::handshake::{Handshake, HandshakeIntent};
-use crate::protocol::packets::login::{
+use vine_config::{BackendConfig, ForwardingMode};
+use vine_protocol::packets::handshake::{Handshake, HandshakeIntent};
+use vine_protocol::packets::login::{
     LoginDisconnect, LoginPluginRequest, LoginPluginResponse, LoginStart, SetCompression,
 };
-use crate::protocol::{
+use vine_protocol::{
     PacketKind, PacketReader, PacketWriter, ProtocolError, ProtocolVersion, decode_packet,
     encode_packet,
 };
@@ -283,5 +283,5 @@ pub(super) struct PreparedBackend {
     pub(super) reader: BackendReader,
     pub(super) writer: BackendWriter,
     // Before 1.20.2: the packets the backend sent up to its JoinGame, and the JoinGame itself
-    pub(super) join_game: Option<(Vec<Bytes>, crate::protocol::RawPacket)>,
+    pub(super) join_game: Option<(Vec<Bytes>, vine_protocol::RawPacket)>,
 }
