@@ -101,6 +101,7 @@ mod tests {
                 forwarding: ForwardingMode::None,
                 secret: None,
                 motd: None,
+                max_players: None,
                 icon_path: None,
             },
         );
@@ -141,6 +142,7 @@ mod tests {
                 forwarding: ForwardingMode::None,
                 secret: None,
                 motd: None,
+                max_players: None,
                 icon_path: None,
             },
         );
@@ -151,6 +153,7 @@ mod tests {
                 forwarding: ForwardingMode::None,
                 secret: None,
                 motd: None,
+                max_players: None,
                 icon_path: None,
             },
         );

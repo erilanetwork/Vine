@@ -193,6 +193,7 @@ mod tests {
                 secret: None,
                 icon_path: None,
                 motd: Some("Survival Line 1\nSurvival Line 2".to_string()),
+                max_players: None,
             },
         );
 

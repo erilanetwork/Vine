@@ -1,5 +1,6 @@
 pub mod glist;
 pub mod moderation;
+pub mod queue;
 pub mod send;
 pub mod server;
 pub mod status;
@@ -158,6 +159,7 @@ impl SuggestionProvider<ProxyCommandSource> for HelpSuggestionProvider {
             ("unbanip", Some("vine.command.banip")),
             ("banlist", Some("vine.command.ban")),
             ("kick", Some("vine.command.kick")),
+            ("queue", None),
             ("maintenance", Some("vine.command.maintenance")),
             ("whitelist", Some("vine.command.whitelist")),
         ] {
@@ -194,6 +196,7 @@ impl CommandExecutor<ProxyCommandSource> for CommandSpecificHelpExecutor {
             "unbanip" => "vine.command.help.unbanip",
             "banlist" => "vine.command.help.banlist",
             "kick" => "vine.command.help.kick",
+            "queue" => "vine.command.help.queue",
             "maintenance" => "vine.command.help.maintenance",
             "whitelist" => "vine.command.help.whitelist",
             _ => "vine.command.help.unknown",
@@ -269,6 +272,7 @@ impl CommandDispatcher {
         glist::register(&mut dispatcher);
         status::register(&mut dispatcher);
         moderation::register(&mut dispatcher);
+        queue::register(&mut dispatcher);
         dispatcher.register(
             command("list", "Lists online players connected to the proxy")
                 .requires(Requirement::from("vine.command.list"))

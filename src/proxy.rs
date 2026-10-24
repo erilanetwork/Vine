@@ -18,6 +18,7 @@ use vine_config::{Config, ForwardingMode, SharedConfig};
 use vine_i18n::translate;
 use vine_moderation::Moderation;
 use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
+use vine_plugin::queue::spawn_queue;
 use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager, send_reliably};
 use vine_security::ConnectionRateLimiter;
@@ -67,7 +68,7 @@ impl ProxyServer {
         let command_dispatcher = Arc::new(CommandDispatcher::new());
 
         let status_handler = Arc::new(RwLock::new(build_status_handler(&config)));
-        let router = Arc::new(Router::new(services.clone()));
+        let router = Arc::new(Router::new(services.clone(), session_manager.clone()));
 
         let plugins_dir = std::path::PathBuf::from(&config.plugins.plugin_dir);
         let plugin_manager =
@@ -156,6 +157,7 @@ impl ProxyServer {
         );
         self.spawn_reload_watcher();
         let health_checks = spawn_health_checks(self.services.clone());
+        let queue = spawn_queue(self.services.clone(), self.session_manager.clone());
 
         if self.config.plugins.enabled {
             debug!(
@@ -270,6 +272,7 @@ impl ProxyServer {
         }
 
         health_checks.abort();
+        queue.abort();
         self.disconnect_players().await;
 
         if self.config.plugins.enabled {

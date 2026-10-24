@@ -9,6 +9,7 @@ use pumpkin_command::suggestion::provider::{SuggestionProvider, SuggestionProvid
 use pumpkin_command::suggestion::suggestions::SuggestionsBuilder;
 
 use super::{CommandSender, ProxyCommandSource, command_error};
+use crate::queue;
 use crate::session::{PlayerAction, send_reliably};
 
 struct ServerSuggestionProvider;
@@ -135,7 +136,8 @@ impl CommandExecutor<ProxyCommandSource> for ServerSwitchCommandExecutor {
             }
         };
 
-        if let Some(session) = context.source.session_manager.get_session(&username)
+        let session = context.source.session_manager.get_session(&username);
+        if let Some(session) = &session
             && session.current_server.eq_ignore_ascii_case(&target_server)
         {
             return Err(command_error(
@@ -151,6 +153,22 @@ impl CommandExecutor<ProxyCommandSource> for ServerSwitchCommandExecutor {
                     .source
                     .tr("vine.command.server.offline", &[&target_server]),
             ));
+        }
+
+        let queue = &context.source.services.queue;
+        if let Some(session) = &session {
+            let sessions = context.source.session_manager.list_sessions();
+            if queue.is_full(&context.source.config(), &target_server, &sessions)
+                && !context.source.has_permission(queue::BYPASS_PERMISSION)
+            {
+                let priority = context.source.has_permission(queue::PRIORITY_PERMISSION);
+                let position = queue.join(&target_server, session.uuid, priority);
+                context
+                    .source
+                    .reply("vine.queue.joined", &[&target_server, &position]);
+                return Ok(1);
+            }
+            queue.leave(session.uuid);
         }
 
         context

@@ -271,6 +271,10 @@ pub struct BackendConfig {
     /// Optional server list description for this backend / virtual host
     #[serde(default)]
     pub motd: Option<String>,
+    /// Players the proxy lets onto this backend at once; anyone asking to join a full server
+    /// with /server waits in a queue. Unset means no limit.
+    #[serde(default)]
+    pub max_players: Option<u32>,
 }
 
 impl Default for Config {
@@ -284,6 +288,7 @@ impl Default for Config {
                 secret: None,
                 icon_path: None,
                 motd: None,
+                max_players: None,
             },
         );
         servers.insert(
@@ -294,6 +299,7 @@ impl Default for Config {
                 secret: None,
                 icon_path: None,
                 motd: None,
+                max_players: None,
             },
         );
         servers.insert(
@@ -304,6 +310,7 @@ impl Default for Config {
                 secret: None,
                 icon_path: None,
                 motd: None,
+                max_players: None,
             },
         );
 
