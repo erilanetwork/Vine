@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+*.der binary
+*.png binary
+*.wasm binary
+
+Cargo.lock linguist-generated
