@@ -50,8 +50,6 @@ pub struct Config {
     pub routing: RoutingConfig,
     pub servers: HashMap<String, BackendConfig>,
     #[serde(default)]
-    pub telemetry: TelemetryConfig,
-    #[serde(default)]
     pub permissions: PermissionsConfig,
     #[serde(default)]
     pub plugins: PluginConfig,
@@ -204,46 +202,6 @@ pub struct BackendConfig {
     pub motd: Option<String>,
 }
 
-fn default_telemetry_interval() -> u64 {
-    300
-}
-
-fn default_telemetry_endpoint() -> String {
-    "https://market.pumpkinmc.org/api/v1/rest/telemetry/heartbeat".to_string()
-}
-
-/// Telemetry configuration options.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TelemetryConfig {
-    /// Whether anonymous telemetry is enabled (default: true)
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// Custom telemetry backend ingestion endpoint
-    #[serde(default = "default_telemetry_endpoint")]
-    pub endpoint: String,
-    /// Heartbeat interval in seconds (default: 300 seconds / 5 minutes). Minimum 60s.
-    #[serde(default = "default_telemetry_interval")]
-    pub interval_secs: u64,
-    /// Whether to opt-in to displaying this proxy in the public community directory.
-    #[serde(default)]
-    pub public: bool,
-    /// Public server/proxy name displayed on the analytics dashboard if public is true.
-    #[serde(default)]
-    pub server_name: Option<String>,
-}
-
-impl Default for TelemetryConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            endpoint: default_telemetry_endpoint(),
-            interval_secs: 300,
-            public: false,
-            server_name: None,
-        }
-    }
-}
-
 impl Default for Config {
     fn default() -> Self {
         let mut servers = HashMap::new();
@@ -320,7 +278,6 @@ impl Default for Config {
                 try_fallback_on_connect_failure: true,
             },
             servers,
-            telemetry: TelemetryConfig::default(),
             permissions: PermissionsConfig::default(),
             plugins: PluginConfig::default(),
         }
@@ -580,39 +537,5 @@ mod tests {
 
         config.servers.get_mut("lobby").unwrap().forwarding = ForwardingMode::None;
         assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn test_telemetry_config_defaults() {
-        let default_config = TelemetryConfig::default();
-        assert!(default_config.enabled);
-        assert_eq!(
-            default_config.endpoint,
-            "https://market.pumpkinmc.org/api/v1/rest/telemetry/heartbeat"
-        );
-        assert_eq!(default_config.interval_secs, 300);
-        assert!(!default_config.public);
-        assert_eq!(default_config.server_name, None);
-    }
-
-    #[test]
-    fn test_telemetry_toml_deserialization() {
-        let toml_str = r#"
-            enabled = false
-            endpoint = "http://localhost:5000/api/v1/rest/telemetry/heartbeat"
-            interval_secs = 120
-            public = true
-            server_name = "Vine Proxy Hub"
-        "#;
-
-        let config: TelemetryConfig = toml::from_str(toml_str).unwrap();
-        assert!(!config.enabled);
-        assert_eq!(
-            config.endpoint,
-            "http://localhost:5000/api/v1/rest/telemetry/heartbeat"
-        );
-        assert_eq!(config.interval_secs, 120);
-        assert!(config.public);
-        assert_eq!(config.server_name.as_deref(), Some("Vine Proxy Hub"));
     }
 }

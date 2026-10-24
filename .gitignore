@@ -18,7 +18,6 @@ crash-reports/
 
 # === CRYPTOGRAPHIC KEYS & SECRETS ===
 identity.key
-telemetry_key.bin
 *.key
 *.pem
 *.crt

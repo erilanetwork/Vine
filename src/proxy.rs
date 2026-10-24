@@ -11,7 +11,6 @@ use crate::backend::forwarding::ForwardingHelper;
 use crate::client::ClientHandler;
 use crate::network;
 use crate::status::{StatusHandler, StatusIconManager};
-use crate::telemetry;
 use vine_auth::{Authenticator, KeyStore};
 use vine_config::{Config, ForwardingMode};
 use vine_i18n::translate;
@@ -155,14 +154,6 @@ impl ProxyServer {
             }
         }
         info!("  Default route: '{}'", self.config.routing.default_server);
-        if self.config.telemetry.enabled {
-            info!(
-                "  Telemetry: enabled (endpoint: {}, interval: {}s)",
-                self.config.telemetry.endpoint, self.config.telemetry.interval_secs
-            );
-        } else {
-            info!("  Telemetry: disabled");
-        }
         info!("=====================================================");
 
         let trusted_proxies: Arc<Vec<network::IpRange>> = Arc::new(
@@ -172,12 +163,6 @@ impl ProxyServer {
                 .iter()
                 .filter_map(|entry| network::IpRange::parse(entry))
                 .collect(),
-        );
-
-        let telemetry_handle = telemetry::start_telemetry(
-            self.config.clone(),
-            self.online_players.clone(),
-            shutdown_rx.resubscribe(),
         );
 
         let console_dispatcher = self.command_dispatcher.clone();
@@ -327,11 +312,6 @@ impl ProxyServer {
 
         if self.config.plugins.enabled {
             self.plugin_manager.unload_plugins().await;
-        }
-
-        if let Some(handle) = telemetry_handle {
-            let timeout_secs = self.config.server.shutdown_timeout_secs.max(1);
-            let _ = tokio::time::timeout(Duration::from_secs(timeout_secs), handle).await;
         }
 
         Ok(())

@@ -2,7 +2,6 @@ pub mod backend;
 pub mod client;
 pub mod proxy;
 pub mod status;
-pub mod telemetry;
 
 pub use vine_auth as auth;
 pub use vine_config as config;
