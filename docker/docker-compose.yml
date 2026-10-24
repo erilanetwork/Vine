@@ -4,8 +4,8 @@ name: vine
 services:
   vine:
     # Make sure to change the tag to the vine version you want to use.
-    # https://github.com/Pumpkin-MC/Vine/pkgs/container/vine/versions?filters%5Bversion_type%5D=tagged
-    #image: ghcr.io/pumpkin-mc/vine:master
+    # https://github.com/erilanetwork/Vine/pkgs/container/vine/versions?filters%5Bversion_type%5D=tagged
+    #image: ghcr.io/erilanetwork/vine:master
     # hmm, context is the repo root so the root .dockerignore still applies
     build:
       context: ..
