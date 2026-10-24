@@ -13,6 +13,9 @@ perf.data.old
 .vine/
 logs/
 /lang/
+/whitelist.json
+/banned-players.json
+/banned-ips.json
 *.log
 crash-reports/
 *.pid

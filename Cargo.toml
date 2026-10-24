@@ -16,6 +16,7 @@ vine-network = { path = "crates/vine-network" }
 vine-config = { path = "crates/vine-config" }
 vine-auth = { path = "crates/vine-auth" }
 vine-plugin = { path = "crates/vine-plugin" }
+vine-moderation = { path = "crates/vine-moderation" }
 
 pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
 pumpkin-auth = { git = "https://github.com/Pumpkin-MC/Pumpkin", rev = "e077274271538b2b7601e0665ab4173d158eb71b" }
@@ -28,6 +29,7 @@ tokio = { version = "1.53", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 toml = { version = "1.1", features = ["parse", "display", "serde"] }
+toml_edit = { version = "0.25", default-features = false, features = ["parse", "display"] }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "chrono"] }
 rustyline = { version = "19.0", default-features = false }
@@ -71,6 +73,7 @@ vine-network.workspace = true
 vine-config.workspace = true
 vine-auth.workspace = true
 vine-plugin.workspace = true
+vine-moderation.workspace = true
 pumpkin-util.workspace = true
 tokio.workspace = true
 serde.workspace = true

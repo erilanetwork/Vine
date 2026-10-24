@@ -19,6 +19,7 @@ use vine_config::Config;
 use vine_i18n::translate;
 use vine_network::PrefixedRead;
 use vine_plugin::command::CommandDispatcher;
+use vine_plugin::command::moderation::{MAINTENANCE_BYPASS, WHITELIST_BYPASS, ban_message};
 use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerLoginEvent, PlayerPreLoginEvent, ProxyPingEvent,
@@ -173,7 +174,12 @@ impl ClientHandler {
             .map_err(|_| ClientError::Timeout)??;
 
         if PacketKind::StatusRequest.matches(raw_status.id, client_version) {
-            let initial_motd = self.status_handler.resolve_motd_text(Some(virtual_host));
+            let maintenance = self.services.config().maintenance.clone();
+            let initial_motd = if maintenance.enabled {
+                maintenance.motd.clone()
+            } else {
+                self.status_handler.resolve_motd_text(Some(virtual_host))
+            };
             let initial_online = self
                 .online_players
                 .load(std::sync::atomic::Ordering::Relaxed) as u32;
@@ -184,7 +190,11 @@ impl ClientHandler {
                 motd: initial_motd,
                 max_players: self.config.motd.max_players,
                 online_players: initial_online,
-                version_name: self.config.motd.version_name.clone(),
+                version_name: if maintenance.enabled {
+                    maintenance.version_name.clone()
+                } else {
+                    self.config.motd.version_name.clone()
+                },
             };
             self.plugin_manager.fire_proxy_ping(&mut ping_event).await;
 
@@ -195,6 +205,8 @@ impl ClientHandler {
                 ping_event.online_players,
                 &ping_event.version_name,
                 Some(virtual_host),
+                // hmm, a protocol no client speaks makes the list show the version text in red
+                maintenance.enabled.then_some(-1),
             );
             writer.send(encode_packet(&status, client_version)?).await?;
         }
@@ -312,6 +324,16 @@ impl ClientHandler {
                 self.peer_addr, username, reason
             );
             Self::kick(&mut writer, client_version, &reason).await?;
+            return Ok(());
+        }
+
+        // checked before talking to Mojang, a banned address doesn't get that far
+        if let Some(ban) = self.services.moderation.bans.ip_ban(client_ip) {
+            info!(
+                "[{}] Rejecting '{}': the address is banned",
+                self.peer_addr, username
+            );
+            Self::kick(&mut writer, client_version, &ban_message(None, &ban)).await?;
             return Ok(());
         }
 
@@ -468,6 +490,13 @@ impl ClientHandler {
         }
         authenticated_player.profile_key = profile_key;
 
+        if let Some(reason) =
+            self.access_denied(&authenticated_player.username, authenticated_player.id)
+        {
+            Self::kick(&mut writer, client_version, &reason).await?;
+            return Ok(());
+        }
+
         // Checked before PlayerLogin so plugins never see a login, or a disconnect, for a player
         // whose account is already playing or logging in on another connection
         let Some(_login_guard) = self
@@ -612,6 +641,36 @@ impl ClientHandler {
 
         bridge.run(reader, writer, action_tx, action_rx).await?;
         Ok(())
+    }
+
+    /// Bans, maintenance and the whitelist, in that order. Returns the kick message for a
+    /// player who may not join.
+    fn access_denied(&self, username: &str, uuid: uuid::Uuid) -> Option<String> {
+        let moderation = &self.services.moderation;
+        if let Some(ban) = moderation.bans.player_ban(username, Some(uuid)) {
+            info!("[{}] Rejecting '{username}': banned", self.peer_addr);
+            return Some(ban_message(None, &ban));
+        }
+        let config = self.services.config();
+        let permissions = &config.permissions;
+        if config.maintenance.enabled && !permissions.has_permission(username, MAINTENANCE_BYPASS) {
+            info!(
+                "[{}] Rejecting '{username}': maintenance is on",
+                self.peer_addr
+            );
+            return Some(translate(None, "vine.login.maintenance", &[]));
+        }
+        if config.whitelist.enabled
+            && !moderation.whitelist.contains(username, uuid)
+            && !permissions.has_permission(username, WHITELIST_BYPASS)
+        {
+            info!(
+                "[{}] Rejecting '{username}': not whitelisted",
+                self.peer_addr
+            );
+            return Some(translate(None, "vine.login.not_whitelisted", &[]));
+        }
+        None
     }
 
     async fn kick(

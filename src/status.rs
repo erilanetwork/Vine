@@ -97,6 +97,7 @@ impl StatusHandler {
     }
 
     /// Create custom status response with overridden fields from plugins
+    #[allow(clippy::too_many_arguments)]
     pub fn create_custom_status_packet(
         &self,
         client_version: ProtocolVersion,
@@ -105,8 +106,11 @@ impl StatusHandler {
         online_players: u32,
         version_name: &str,
         virtual_host: Option<&str>,
+        protocol_override: Option<i32>,
     ) -> StatusResponse {
-        let protocol = if client_version.is_known() {
+        let protocol = if let Some(protocol) = protocol_override {
+            protocol
+        } else if client_version.is_known() {
             client_version.0 as i32
         } else {
             self.motd.protocol_version
@@ -220,6 +224,7 @@ mod tests {
             50,
             5,
             "Vine Proxy",
+            None,
             None,
         );
         assert!(global.json.contains("Global Line 1\\nGlobal Line 2"));

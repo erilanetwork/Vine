@@ -1,4 +1,5 @@
 pub mod glist;
+pub mod moderation;
 pub mod send;
 pub mod server;
 pub mod status;
@@ -151,6 +152,14 @@ impl SuggestionProvider<ProxyCommandSource> for HelpSuggestionProvider {
             ("glist", Some("vine.command.glist")),
             ("status", Some("vine.command.status")),
             ("help", Some("vine.command.help")),
+            ("ban", Some("vine.command.ban")),
+            ("unban", Some("vine.command.ban")),
+            ("banip", Some("vine.command.banip")),
+            ("unbanip", Some("vine.command.banip")),
+            ("banlist", Some("vine.command.ban")),
+            ("kick", Some("vine.command.kick")),
+            ("maintenance", Some("vine.command.maintenance")),
+            ("whitelist", Some("vine.command.whitelist")),
         ] {
             if cmd_name.starts_with(&remaining) {
                 let allowed = is_admin
@@ -179,6 +188,14 @@ impl CommandExecutor<ProxyCommandSource> for CommandSpecificHelpExecutor {
             "glist" => "vine.command.help.glist",
             "status" => "vine.command.help.status",
             "help" => "vine.command.help.help",
+            "ban" => "vine.command.help.ban",
+            "unban" => "vine.command.help.unban",
+            "banip" => "vine.command.help.banip",
+            "unbanip" => "vine.command.help.unbanip",
+            "banlist" => "vine.command.help.banlist",
+            "kick" => "vine.command.help.kick",
+            "maintenance" => "vine.command.help.maintenance",
+            "whitelist" => "vine.command.help.whitelist",
             _ => "vine.command.help.unknown",
         };
         context.source.reply(key, &[]);
@@ -251,6 +268,7 @@ impl CommandDispatcher {
         send::register(&mut dispatcher);
         glist::register(&mut dispatcher);
         status::register(&mut dispatcher);
+        moderation::register(&mut dispatcher);
         dispatcher.register(
             command("list", "Lists online players connected to the proxy")
                 .requires(Requirement::from("vine.command.list"))

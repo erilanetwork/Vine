@@ -50,6 +50,49 @@ pub struct Config {
     pub plugins: PluginConfig,
     #[serde(default)]
     pub health: HealthConfig,
+    #[serde(default)]
+    pub maintenance: MaintenanceConfig,
+    #[serde(default)]
+    pub whitelist: WhitelistConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MaintenanceConfig {
+    /// Only players with `vine.maintenance.bypass` may join; toggle with /maintenance
+    #[serde(default)]
+    pub enabled: bool,
+    /// Server list description while maintenance is on
+    #[serde(default = "default_maintenance_motd")]
+    pub motd: String,
+    /// Shown in red where the version normally goes in the server list
+    #[serde(default = "default_maintenance_version")]
+    pub version_name: String,
+}
+
+fn default_maintenance_motd() -> String {
+    "§cDown for maintenance\n§7We'll be back soon".to_string()
+}
+
+fn default_maintenance_version() -> String {
+    "Maintenance".to_string()
+}
+
+impl Default for MaintenanceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            motd: default_maintenance_motd(),
+            version_name: default_maintenance_version(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct WhitelistConfig {
+    /// Only players in whitelist.json or with `vine.whitelist.bypass` may join; toggle with
+    /// /whitelist on|off
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -308,6 +351,8 @@ impl Default for Config {
             permissions: PermissionsConfig::default(),
             plugins: PluginConfig::default(),
             health: HealthConfig::default(),
+            maintenance: MaintenanceConfig::default(),
+            whitelist: WhitelistConfig::default(),
         }
     }
 }
@@ -502,6 +547,25 @@ impl Config {
     }
 }
 
+/// Sets one value in the config file, keeping the rest of it as written, comments included.
+/// Used by commands like /maintenance that flip a switch the admin would otherwise edit by hand.
+pub fn set_config_value(
+    path: &Path,
+    section: &str,
+    key: &str,
+    value: impl Into<toml_edit::Value>,
+) -> Result<(), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| format!("{e}"))?;
+    let table = doc
+        .entry(section)
+        .or_insert_with(toml_edit::table)
+        .as_table_like_mut()
+        .ok_or_else(|| format!("[{section}] in '{}' is not a table", path.display()))?;
+    table.insert(key, toml_edit::Item::Value(value.into()));
+    std::fs::write(path, doc.to_string()).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -527,6 +591,25 @@ mod tests {
         let mut b = Config::default();
         b.resolve_forwarding_secret(dir.path()).unwrap();
         assert_eq!(b.servers["lobby"].secret, a.servers["lobby"].secret);
+    }
+
+    #[test]
+    fn test_set_config_value_keeps_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vine.toml");
+        std::fs::write(
+            &path,
+            "# my notes\n[server]\nbind_address = \"0.0.0.0:25565\"\n",
+        )
+        .unwrap();
+
+        set_config_value(&path, "maintenance", "enabled", true).unwrap();
+        set_config_value(&path, "server", "bind_address", "127.0.0.1:1").unwrap();
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# my notes"));
+        assert!(text.contains("[maintenance]\nenabled = true"));
+        assert!(text.contains("bind_address = \"127.0.0.1:1\""));
     }
 
     #[test]

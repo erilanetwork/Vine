@@ -16,6 +16,7 @@ use crate::status::{StatusHandler, StatusIconManager};
 use vine_auth::{Authenticator, KeyStore};
 use vine_config::{Config, ForwardingMode, SharedConfig};
 use vine_i18n::translate;
+use vine_moderation::Moderation;
 use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
 use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager, send_reliably};
@@ -43,7 +44,14 @@ impl ProxyServer {
         config: Config,
         config_path: impl Into<PathBuf>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let services = Arc::new(ProxyServices::new(SharedConfig::new(config, config_path)));
+        let config_path = config_path.into();
+        // the ban and whitelist files sit next to vine.toml, like the lang folder
+        let moderation =
+            Moderation::load(config_path.parent().unwrap_or(std::path::Path::new("")))?;
+        let services = Arc::new(ProxyServices::new(
+            SharedConfig::new(config, config_path),
+            moderation,
+        ));
         let config = services.config();
         let keystore = Arc::new(KeyStore::new()?);
         let authenticator = Arc::new(Authenticator::new());

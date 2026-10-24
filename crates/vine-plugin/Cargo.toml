@@ -9,6 +9,7 @@ license.workspace = true
 vine-config.workspace = true
 vine-i18n.workspace = true
 vine-protocol.workspace = true
+vine-moderation.workspace = true
 pumpkin-util.workspace = true
 pumpkin-command.workspace = true
 pumpkin-plugin-runtime.workspace = true
