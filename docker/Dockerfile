@@ -8,6 +8,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY crates ./crates
 COPY wit ./wit
+# hmm, the examples aren't built here, but they are workspace members and Cargo.lock knows them
+COPY examples ./examples
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \

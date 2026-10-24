@@ -8,6 +8,7 @@
 !/src/
 !/crates/
 !/wit/
+!/examples/
 
 # Dependencies
 !Cargo.lock
