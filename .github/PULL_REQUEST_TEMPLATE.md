@@ -13,4 +13,4 @@
 - [ ] `cargo fmt --all` and `cargo clippy --all-targets --all-features -- -D warnings` pass
 - [ ] `cargo test` passes
 - [ ] Docs and `en_us.json` are updated where behavior or messages changed
-- [ ] Changes to `wit/` or `vine.toml` are called out above, since they affect existing plugins and configs
+- [ ] Changes to the plugin WIT files or `vine.toml` are called out above, since they affect existing plugins and configs

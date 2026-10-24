@@ -32,10 +32,10 @@ For testing against a real backend, a [Pumpkin](https://github.com/Pumpkin-MC/Pu
 | `crates/vine-i18n` | Translations, with `en_us.json` as the source of truth |
 | `crates/vine-moderation` | Bans and the whitelist, stored as JSON |
 | `crates/vine-plugin` | Built in commands, health, queues, metrics and the WebAssembly plugin host |
+| `crates/vine-plugin-wit` | The plugin interface, as WIT files |
 | `crates/vine-plugin-sdk` | The Rust SDK plugins are written with |
 | `examples/` | Example plugins, built for `wasm32-wasip2` |
 | `tests/` | End to end tests that run the proxy against a fake backend |
-| `wit/` | The plugin interface |
 
 ## Before opening a PR
 
@@ -59,7 +59,7 @@ CI also runs [`cargo machete`](https://github.com/bnjbvr/cargo-machete) for unus
 - The plugin host test in `crates/vine-plugin/tests/sdk_plugin.rs` skips itself until the example plugin is built with `cargo build -p hello-plugin --target wasm32-wasip2 --release`.
 - Avoid allocations in packet hot paths. Most of the proxy's time goes to moving bytes between client and backend.
 - Never log secrets, forwarding keys or session tokens.
-- Changes to `wit/` break existing plugins, so call them out clearly in the PR, and keep `vine-plugin-sdk` and the example plugin building.
+- Changes to the WIT files break existing plugins, so call them out clearly in the PR, and keep `vine-plugin-sdk` and the example plugin building.
 
 ### Translations
 

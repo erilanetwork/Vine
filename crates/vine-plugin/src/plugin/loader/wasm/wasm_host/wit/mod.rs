@@ -1,7 +1,7 @@
 use wasmtime::component::bindgen;
 
 bindgen!({
-    path: "../../wit",
+    path: "../vine-plugin-wit/wit",
     world: "plugin",
     imports: {
         default: async | trappable,

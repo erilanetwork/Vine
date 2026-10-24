@@ -197,7 +197,7 @@ Every player gets the default group. `*` matches everything, `vine.command.*` ma
 
 ## Plugins
 
-Plugins are WebAssembly components dropped into `plugins/` as `.wasm` files. The interface they build against is in [`wit/`](wit). Plugins can listen to proxy events, register commands with tab completion, send messages, move players and use the translation system. Each one gets its own memory limit and call timeout, and a plugin that hangs is disabled instead of stalling the proxy.
+Plugins are WebAssembly components dropped into `plugins/` as `.wasm` files. The interface they build against is in [`crates/vine-plugin-wit/wit`](crates/vine-plugin-wit/wit). Plugins can listen to proxy events, register commands with tab completion, send messages, move players and use the translation system. Each one gets its own memory limit and call timeout, and a plugin that hangs is disabled instead of stalling the proxy.
 
 `/vine reload` reloads them in place, so you can update a plugin without kicking anyone.
 

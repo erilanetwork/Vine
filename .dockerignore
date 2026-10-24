@@ -7,7 +7,6 @@
 # Allow the source code folders
 !/src/
 !/crates/
-!/wit/
 !/examples/
 
 # Dependencies

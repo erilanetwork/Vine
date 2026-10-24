@@ -1,0 +1,9 @@
+[package]
+name = "vine-plugin-wit"
+description = "The WIT interface between Vine and its plugins"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]

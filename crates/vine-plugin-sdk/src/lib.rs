@@ -46,7 +46,7 @@ mod wit {
         // the plugin crate defines init-plugin through register_plugin!, that's how the SDK
         // learns which type the plugin is
         skip: ["init-plugin"],
-        path: "../../wit",
+        path: "../vine-plugin-wit/wit",
         world: "plugin",
     });
 
