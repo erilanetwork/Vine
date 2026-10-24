@@ -41,10 +41,16 @@ chmod +x vine-X64-Linux
 ### Docker
 
 ```sh
+docker run -it -p 25565:25565 -v vine-data:/vine ghcr.io/erilanetwork/vine:latest
+```
+
+Or with compose:
+
+```sh
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-The compose file builds the image from source and keeps its files in the `vine-data` volume. Prebuilt images are published to `ghcr.io/erilanetwork/vine`; swap the `build` section for the commented `image` line to use one. The console is attached, so `docker attach vine-vine-1` gives you the Vine prompt.
+The compose file builds the image from source and keeps its files in the `vine-data` volume. Prebuilt images for x86_64 and ARM64 are published to `ghcr.io/erilanetwork/vine` and Docker Hub as `erilanetwork/vine`, tagged `latest`, the release version and `master`. Swap the `build` section for the commented `image` line to use one. The console is attached, so `docker attach vine-vine-1` gives you the Vine prompt.
 
 ### Pterodactyl
 

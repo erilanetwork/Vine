@@ -130,6 +130,24 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ok so Docker Hub is optional: without a token the images only go to GHCR. Secrets can't be
+      # read in step conditions, so this step just records whether one is set
+      - name: Check for Docker Hub
+        id: dockerhub
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+        run: |
+          if [ -n "$DOCKERHUB_TOKEN" ] && [ -n "$DOCKERHUB_USERNAME" ]; then enabled=true; else enabled=false; fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker Hub
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -149,7 +167,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}
+            name=docker.io/${{ vars.DOCKERHUB_IMAGE || 'erilanetwork/vine' }},enable=${{ steps.dockerhub.outputs.enabled == 'true' }}
           # Branch pushes only move the branch and commit tags; latest and the version tag are set
           # by a release tag or a manual run on master for a version not published yet, so a
           # published version never changes underneath its users
@@ -159,6 +179,7 @@ jobs:
             type=raw,value=latest,enable=${{ steps.release.outputs.publish == 'true' && !contains(env.VINE_VERSION, '-') }}
             type=raw,value=${{ env.VINE_VERSION }},enable=${{ steps.release.outputs.publish == 'true' }}
 
+      # the platform images only live on GHCR; imagetools copies them over for the Docker Hub tags
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
