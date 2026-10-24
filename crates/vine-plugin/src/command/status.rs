@@ -42,7 +42,20 @@ impl CommandExecutor<ProxyCommandSource> for StatusCommandExecutor {
         }
         let servers: Vec<String> = per_server
             .into_iter()
-            .map(|(name, count)| source.tr("vine.command.status.server", &[&name, &count]))
+            .map(|(name, count)| match source.services.health.get(name) {
+                Some(health) if !health.online => {
+                    source.tr("vine.command.status.server_offline", &[&name])
+                }
+                Some(health) if health.latency.is_some() => source.tr(
+                    "vine.command.status.server_ping",
+                    &[
+                        &name,
+                        &count,
+                        &health.latency.unwrap_or_default().as_millis(),
+                    ],
+                ),
+                _ => source.tr("vine.command.status.server", &[&name, &count]),
+            })
             .collect();
 
         let online_mode = if config.server.online_mode {

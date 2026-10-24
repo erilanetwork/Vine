@@ -2,6 +2,7 @@ pub mod bridge;
 mod client_queue;
 mod connection;
 pub mod forwarding;
+mod health;
 mod login;
 mod readers;
 mod suggestions;
@@ -10,6 +11,7 @@ mod task;
 mod tunnel;
 
 pub use bridge::{BackendBridge, BridgeError};
+pub use health::spawn_health_checks;
 
 use std::sync::Arc;
 use vine_config::{BackendConfig, normalize_host};
@@ -24,29 +26,29 @@ impl Router {
         Self { services }
     }
 
-    /// Resolves which backend server to connect to based on virtual host or default
+    /// Picks the backend for a new player: the forced host's server, then the default, then the
+    /// fallback, skipping any that failed their health checks. With all of them down it still
+    /// returns the first choice, so the player gets the usual connect error instead of nothing.
     pub fn resolve_server(&self, virtual_host: &str) -> Option<(String, BackendConfig)> {
         let config = self.services.config();
         let (routing, servers) = (&config.routing, &config.servers);
-        if let Some(target_name) = routing.forced_hosts.get(&normalize_host(virtual_host))
-            && let Some(cfg) = servers.get(target_name)
-        {
-            return Some((target_name.clone(), cfg.clone()));
-        }
+        let preferred: Vec<&String> = routing
+            .forced_hosts
+            .get(&normalize_host(virtual_host))
+            .into_iter()
+            .chain(std::iter::once(&routing.default_server))
+            .chain(routing.fallback_server.as_ref())
+            .filter(|name| servers.contains_key(*name))
+            .collect();
 
-        if let Some(cfg) = servers.get(&routing.default_server) {
-            return Some((routing.default_server.clone(), cfg.clone()));
-        }
-
-        if let Some(fallback_name) = &routing.fallback_server
-            && let Some(cfg) = servers.get(fallback_name)
-        {
-            return Some((fallback_name.clone(), cfg.clone()));
-        }
-
-        servers
+        let health = &self.services.health;
+        let pick = preferred
             .iter()
-            .next()
-            .map(|(name, cfg)| (name.clone(), cfg.clone()))
+            .copied()
+            .find(|name| !health.is_down(name))
+            .or_else(|| servers.keys().find(|name| !health.is_down(name)))
+            .or_else(|| preferred.first().copied())
+            .or_else(|| servers.keys().next())?;
+        servers.get(pick).map(|cfg| (pick.clone(), cfg.clone()))
     }
 }

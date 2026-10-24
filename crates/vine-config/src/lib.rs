@@ -48,6 +48,47 @@ pub struct Config {
     pub permissions: PermissionsConfig,
     #[serde(default)]
     pub plugins: PluginConfig,
+    #[serde(default)]
+    pub health: HealthConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HealthConfig {
+    /// Ping every backend regularly and route players away from the ones that stop answering
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Seconds between two checks of the same backend
+    #[serde(default = "default_health_interval")]
+    pub interval_secs: u64,
+    /// Seconds a backend has to answer a check
+    #[serde(default = "default_health_timeout")]
+    pub timeout_secs: u64,
+    /// Failed checks in a row before a backend counts as down
+    #[serde(default = "default_health_failures")]
+    pub unhealthy_after: u32,
+}
+
+fn default_health_interval() -> u64 {
+    10
+}
+
+fn default_health_timeout() -> u64 {
+    3
+}
+
+fn default_health_failures() -> u32 {
+    2
+}
+
+impl Default for HealthConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: default_health_interval(),
+            timeout_secs: default_health_timeout(),
+            unhealthy_after: default_health_failures(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -266,6 +307,7 @@ impl Default for Config {
             servers,
             permissions: PermissionsConfig::default(),
             plugins: PluginConfig::default(),
+            health: HealthConfig::default(),
         }
     }
 }
@@ -410,6 +452,11 @@ impl Config {
                 "security.max_connections_per_sec and security.connection_burst must be at least 1 \
                  while rate limiting is on"
                     .to_string(),
+            );
+        }
+        if self.health.interval_secs == 0 || self.health.timeout_secs == 0 {
+            return Err(
+                "health.interval_secs and health.timeout_secs must be at least 1".to_string(),
             );
         }
         if self.network.proxy_protocol && self.network.proxy_protocol_trusted_proxies.is_empty() {

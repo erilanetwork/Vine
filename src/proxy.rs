@@ -7,8 +7,8 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
-use crate::backend::Router;
 use crate::backend::forwarding::ForwardingHelper;
+use crate::backend::{Router, spawn_health_checks};
 use crate::client::ClientHandler;
 use crate::console::Console;
 use crate::network;
@@ -147,6 +147,7 @@ impl ProxyServer {
             shutdown_tx,
         );
         self.spawn_reload_watcher();
+        let health_checks = spawn_health_checks(self.services.clone());
 
         if self.config.plugins.enabled {
             debug!(
@@ -260,6 +261,7 @@ impl ProxyServer {
             }
         }
 
+        health_checks.abort();
         self.disconnect_players().await;
 
         if self.config.plugins.enabled {

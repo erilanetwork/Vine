@@ -2,15 +2,21 @@ use std::sync::Arc;
 
 use vine_config::{Config, SharedConfig};
 
+use crate::health::HealthRegistry;
+
 /// The proxy wide state that commands, plugins and connections share. Everything here can
 /// change while the proxy runs, so callers read it fresh instead of keeping copies.
 pub struct ProxyServices {
     pub config: SharedConfig,
+    pub health: HealthRegistry,
 }
 
 impl ProxyServices {
     pub fn new(config: SharedConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            health: HealthRegistry::default(),
+        }
     }
 
     /// Wraps a config that doesn't come from a file, mostly handy in tests

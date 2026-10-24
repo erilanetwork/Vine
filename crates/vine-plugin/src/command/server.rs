@@ -46,9 +46,16 @@ impl CommandExecutor<ProxyCommandSource> for ServerInfoCommandExecutor {
         let config = context.source.config();
         let mut available: Vec<&String> = config.servers.keys().collect();
         available.sort();
+        let health = &context.source.services.health;
         let servers_str = available
             .iter()
-            .map(|s| s.as_str())
+            .map(|s| {
+                if health.is_down(s) {
+                    context.source.tr("vine.command.server.offline_entry", &[s])
+                } else {
+                    s.to_string()
+                }
+            })
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -135,6 +142,14 @@ impl CommandExecutor<ProxyCommandSource> for ServerSwitchCommandExecutor {
                 context
                     .source
                     .tr("vine.command.server.already_connected", &[&target_server]),
+            ));
+        }
+
+        if context.source.services.health.is_down(&target_server) {
+            return Err(command_error(
+                context
+                    .source
+                    .tr("vine.command.server.offline", &[&target_server]),
             ));
         }
 
