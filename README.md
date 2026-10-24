@@ -17,7 +17,7 @@ cargo build --release --locked
 ```
 
 The first start writes `vine.toml`, `lang/en_us.json` and, when a backend uses Vine forwarding, `vine-forwarding.key`.
-Docker users can run `docker compose up -d`, and `egg-vine.json` is a Pterodactyl egg.
+Docker users can run `docker compose -f docker/docker-compose.yml up -d`, and `egg-vine.json` is a Pterodactyl egg.
 
 ## License
 

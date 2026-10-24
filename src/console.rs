@@ -103,7 +103,7 @@ impl Console {
                     _ = shutdown_rx.recv() => break,
                     line = line_rx.recv() => match line {
                         Some(line) if is_stop(&line) => {
-                            info!("Shutting down (console)");
+                            info!("Shutting down");
                             let _ = shutdown_tx.send(());
                         }
                         Some(line) => dispatcher.handle_command(&source, &line),

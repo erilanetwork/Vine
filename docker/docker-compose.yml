@@ -1,9 +1,15 @@
+# pinned, otherwise compose names the project after this folder and the volume turns into docker_vine-data
+name: vine
+
 services:
   vine:
     # Make sure to change the tag to the vine version you want to use.
     # https://github.com/Pumpkin-MC/Vine/pkgs/container/vine/versions?filters%5Bversion_type%5D=tagged
     #image: ghcr.io/pumpkin-mc/vine:master
-    build: .
+    # hmm, context is the repo root so the root .dockerignore still applies
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
       - "25565:25565"
     volumes:
