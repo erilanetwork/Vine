@@ -1,6 +1,7 @@
 pub mod glist;
 pub mod send;
 pub mod server;
+pub mod status;
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -142,6 +143,7 @@ impl SuggestionProvider<ProxyCommandSource> for HelpSuggestionProvider {
             ("send", Some("vine.command.send")),
             ("list", Some("vine.command.list")),
             ("glist", Some("vine.command.glist")),
+            ("status", Some("vine.command.status")),
             ("help", Some("vine.command.help")),
         ] {
             if cmd_name.starts_with(&remaining) {
@@ -169,6 +171,7 @@ impl CommandExecutor<ProxyCommandSource> for CommandSpecificHelpExecutor {
             "send" => "vine.command.help.send",
             "list" => "vine.command.help.list",
             "glist" => "vine.command.help.glist",
+            "status" => "vine.command.help.status",
             "help" => "vine.command.help.help",
             _ => "vine.command.help.unknown",
         };
@@ -241,6 +244,7 @@ impl CommandDispatcher {
         server::register(&mut dispatcher);
         send::register(&mut dispatcher);
         glist::register(&mut dispatcher);
+        status::register(&mut dispatcher);
         dispatcher.register(
             command("list", "Lists online players connected to the proxy")
                 .requires(Requirement::from("vine.command.list"))
@@ -466,6 +470,7 @@ mod tests {
         assert!(dispatcher.has_command("list"));
         assert!(dispatcher.has_command("glist"));
         assert!(dispatcher.has_command("/glist"));
+        assert!(dispatcher.has_command("status"));
         assert!(!dispatcher.has_command("unknown"));
 
         let config = Arc::new(Config::default());
@@ -526,7 +531,7 @@ mod tests {
             .iter()
             .map(|s| s.text.cached_text().as_str())
             .collect();
-        assert_eq!(names_s, vec!["send", "server"]);
+        assert_eq!(names_s, vec!["send", "server", "status"]);
 
         let s_ser = dispatcher.suggest_with_range("ser", &source);
         let names_ser: Vec<&str> = s_ser
