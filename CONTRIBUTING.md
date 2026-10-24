@@ -30,7 +30,11 @@ For testing against a real backend, a [Pumpkin](https://github.com/Pumpkin-MC/Pu
 | `crates/vine-security` | Rate limiting and input sanitizing |
 | `crates/vine-config` | `vine.toml` and permissions |
 | `crates/vine-i18n` | Translations, with `en_us.json` as the source of truth |
-| `crates/vine-plugin` | Built in commands and the WebAssembly plugin host |
+| `crates/vine-moderation` | Bans and the whitelist, stored as JSON |
+| `crates/vine-plugin` | Built in commands, health, queues, metrics and the WebAssembly plugin host |
+| `crates/vine-plugin-sdk` | The Rust SDK plugins are written with |
+| `examples/` | Example plugins, built for `wasm32-wasip2` |
+| `tests/` | End to end tests that run the proxy against a fake backend |
 | `wit/` | The plugin interface |
 
 ## Before opening a PR
@@ -51,10 +55,11 @@ CI also runs [`cargo machete`](https://github.com/bnjbvr/cargo-machete) for unus
 - Keep a PR focused on one thing. Unrelated cleanups go in their own PR.
 - Match the style of the code around your change. `rustfmt` handles formatting, the rest is naming and structure.
 - Write comments when they explain something the code cannot, like a protocol quirk or why a workaround exists. Skip comments that repeat the code.
-- Add tests for logic that can be tested without a running client, following the existing `#[cfg(test)]` modules.
+- Add tests for logic that can be tested without a running client, following the existing `#[cfg(test)]` modules. Behavior that needs a connection belongs in `tests/proxy.rs`, which drives a real proxy with a fake client and backend.
+- The plugin host test in `crates/vine-plugin/tests/sdk_plugin.rs` skips itself until the example plugin is built with `cargo build -p hello-plugin --target wasm32-wasip2 --release`.
 - Avoid allocations in packet hot paths. Most of the proxy's time goes to moving bytes between client and backend.
 - Never log secrets, forwarding keys or session tokens.
-- Changes to `wit/` break existing plugins, so call them out clearly in the PR.
+- Changes to `wit/` break existing plugins, so call them out clearly in the PR, and keep `vine-plugin-sdk` and the example plugin building.
 
 ### Translations
 

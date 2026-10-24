@@ -14,6 +14,11 @@
 - **Vine forwarding** for Pumpkin backends, signed with Ed25519 so a backend can trust the player data it receives
 - **WebAssembly plugins** that run sandboxed, with memory and time limits, and reload without a restart
 - **Forced hosts** to route players by the domain they joined with, plus per host MOTDs and icons
+- **Health checks** that ping every backend and send new players around servers that are down
+- **Queues** for backends with a player limit, with priority and bypass permissions
+- **Bans, kicks, a whitelist and maintenance mode**, kept in plain JSON files next to the config
+- **Live config reloads** with `/vine config reload`, no restart and nobody kicked
+- **Prometheus metrics** for players, backends, queues and logins
 - **Permissions** with groups, inheritance, wildcards and negated nodes, all in `vine.toml`
 - **Built in protection** with per IP connection rate limits, packet flood limits and username validation
 - **PROXY protocol** v1 and v2 for running behind HAProxy, Cloudflare Spectrum and similar
@@ -125,6 +130,22 @@ forwarding = "none"
 | `[servers.<name>]` | Backend address, forwarding mode, an optional own secret, MOTD and icon |
 | `[permissions]` | Groups, inheritance and per player assignments |
 | `[plugins]` | Plugin folder, memory limit and call timeout |
+| `[health]` | Backend health check interval, timeout and how many failures mark a server down |
+| `[maintenance]` | Maintenance mode switch, its server list text and version label |
+| `[whitelist]` | Whitelist switch; the players themselves live in `whitelist.json` |
+| `[metrics]` | Prometheus endpoint switch and address |
+
+`/vine config reload` applies most changes right away. The listen address, `[network]`, `[plugins]`, `[metrics]` and the connection rate limits need a restart, and the reload says so when one of them changed.
+
+Setting `max_players` on a backend caps it at that many players. Anyone using `/server` to join a full backend waits in its queue and is moved over once a slot opens; `vine.queue.priority` puts a player ahead of the line and `vine.queue.bypass` skips it.
+
+### Bans and whitelist
+
+Bans live in `banned-players.json` and `banned-ips.json`, the whitelist in `whitelist.json`, all next to `vine.toml`. The commands below keep them up to date, but they are plain JSON and fine to edit by hand while the proxy is stopped. Durations look like `30m`, `12h`, `1d12h` or `2w`.
+
+### Metrics
+
+With `[metrics] enabled = true`, Vine serves Prometheus metrics at `http://127.0.0.1:9225/metrics`. The endpoint has no authentication, so keep it on a private address.
 
 ### Forwarding
 
@@ -145,6 +166,16 @@ Each backend picks a `forwarding` mode:
 | `/help [command]` | `vine.command.help` | Show command help |
 | `/vine plugins` | `vine.command.plugins` | List loaded plugins |
 | `/vine reload [plugin]` | `vine.command.plugins` | Reload all plugins or a single one |
+| `/vine config reload` | `vine.command.reload` | Read `vine.toml` again |
+| `/queue [leave]` | none | Show or give up your place in a queue |
+| `/kick <player> [reason]` | `vine.command.kick` | Disconnect a player |
+| `/ban <player> [duration] [reason]` | `vine.command.ban` | Ban a player, permanently without a duration |
+| `/unban <player>` | `vine.command.ban` | Lift a ban |
+| `/banip <ip\|player> [duration] [reason]` | `vine.command.banip` | Ban an address, or the one a player is on |
+| `/unbanip <ip>` | `vine.command.banip` | Lift an IP ban |
+| `/banlist` | `vine.command.ban` | List bans |
+| `/maintenance <on\|off>` | `vine.command.maintenance` | Toggle maintenance mode, kicking players without `vine.maintenance.bypass` |
+| `/whitelist <on\|off\|list\|add\|remove>` | `vine.command.whitelist` | Manage the whitelist; `vine.whitelist.bypass` gets past it |
 
 The console has every permission and also accepts `stop` (or `end`) to shut the proxy down.
 
@@ -173,6 +204,14 @@ Every player gets the default group. `*` matches everything, `vine.command.*` ma
 Plugins are WebAssembly components dropped into `plugins/` as `.wasm` files. The interface they build against is in [`wit/`](wit). Plugins can listen to proxy events, register commands with tab completion, send messages, move players and use the translation system. Each one gets its own memory limit and call timeout, and a plugin that hangs is disabled instead of stalling the proxy.
 
 `/vine reload` reloads them in place, so you can update a plugin without kicking anyone.
+
+The easiest way to write one is in Rust with [`vine-plugin-sdk`](crates/vine-plugin-sdk). [`examples/hello-plugin`](examples/hello-plugin) is a small working plugin that greets players, adds a command and changes the server list. Build it with:
+
+```sh
+rustup target add wasm32-wasip2
+cargo build -p hello-plugin --target wasm32-wasip2 --release
+cp target/wasm32-wasip2/release/hello_plugin.wasm plugins/
+```
 
 ## Contributing
 
