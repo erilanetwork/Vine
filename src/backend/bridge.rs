@@ -50,8 +50,6 @@ pub enum BridgeError {
         "Backend server '{0}' is in online mode; set online-mode=false on it and use player info forwarding"
     )]
     OnlineMode(String),
-    #[error("Velocity forwarding error: {0}")]
-    VelocityError(String),
     #[error("Vine forwarding error: {0}")]
     VineError(String),
 }

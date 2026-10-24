@@ -3067,7 +3067,6 @@ dependencies = [
  "bytes",
  "ed25519-dalek",
  "hex",
- "hmac",
  "pumpkin-auth",
  "pumpkin-util",
  "rand",

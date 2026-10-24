@@ -13,8 +13,6 @@ services:
       #- ./data:/vine
       # Use the following, if you want to make your config immutable
       #- ./vine.toml:/vine/vine.toml:ro
-    #environment:
-    #  VINE_FORWARDING_SECRET: change-me
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped

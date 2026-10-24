@@ -8,9 +8,7 @@ use tracing::{debug, warn};
 
 use super::bridge::{BackendBridge, BridgeError};
 use super::switch::SWITCH_ACK_TIMEOUT;
-use crate::backend::forwarding::{
-    ForwardingHelper, VELOCITY_PLAYER_INFO_CHANNEL, VINE_PLAYER_INFO_CHANNEL,
-};
+use crate::backend::forwarding::{ForwardingHelper, VINE_PLAYER_INFO_CHANNEL};
 use crate::network;
 use vine_config::{BackendConfig, ForwardingMode};
 use vine_protocol::packets::handshake::{Handshake, HandshakeIntent};
@@ -93,20 +91,9 @@ impl BackendBridge {
         let mut backend_writer = PacketWriter::new(backend_write);
         let version = self.client_version;
 
-        let backend_host = match active_config.forwarding {
-            ForwardingMode::BungeeCord => ForwardingHelper::build_bungeecord_host(
-                &self.virtual_host,
-                &self.client_ip,
-                &self.player,
-            ),
-            ForwardingMode::Velocity | ForwardingMode::Vine | ForwardingMode::None => {
-                self.virtual_host.clone()
-            }
-        };
-
         let handshake = Handshake {
             protocol_version: version.0 as i32,
-            server_address: backend_host,
+            server_address: self.virtual_host.clone(),
             server_port: 25565,
             intent: HandshakeIntent::Login,
         };
@@ -179,33 +166,6 @@ impl BackendBridge {
                             &challenge,
                         )
                         .map_err(|e| BridgeError::VineError(e.to_string()))?,
-                    )
-                } else if request.channel == VELOCITY_PLAYER_INFO_CHANNEL
-                    && active_config.forwarding == ForwardingMode::Velocity
-                {
-                    let secret = active_config
-                        .secret
-                        .as_deref()
-                        .ok_or_else(|| BridgeError::VelocityError("Secret missing".to_string()))?;
-
-                    let forwarding_version = ForwardingHelper::velocity_forwarding_version(
-                        &request.data,
-                        version,
-                        self.player.profile_key.as_ref(),
-                    );
-                    debug!(
-                        "Answering Velocity forwarding request {:?} with version {}",
-                        request.data, forwarding_version
-                    );
-
-                    Some(
-                        ForwardingHelper::build_velocity_payload(
-                            secret,
-                            forwarding_version,
-                            &self.client_ip,
-                            &self.player,
-                        )
-                        .map_err(|e| BridgeError::VelocityError(e.to_string()))?,
                     )
                 } else {
                     None

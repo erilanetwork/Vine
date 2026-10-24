@@ -68,16 +68,6 @@
             "user_editable": true,
             "rules": "nullable|string",
             "field_type": "text"
-        },
-        {
-            "name": "Forwarding Secret",
-            "description": "Secret shared with Velocity-forwarding backends (proxies.velocity.secret in Paper). Leave empty to use the generated forwarding.secret file.",
-            "env_variable": "VINE_FORWARDING_SECRET",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:256",
-            "field_type": "text"
         }
     ]
 }

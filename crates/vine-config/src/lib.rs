@@ -20,13 +20,7 @@ fn default_shutdown_timeout() -> u64 {
     10
 }
 
-const LEGACY_PLACEHOLDER_SECRET: &str = "vine-velocity-secret-change-me";
-const FORWARDING_SECRET_ENV: &str = "VINE_FORWARDING_SECRET";
 const BIND_ADDRESS_ENV: &str = "VINE_BIND_ADDRESS";
-
-fn default_forwarding_secret_file() -> String {
-    "forwarding.secret".to_string()
-}
 
 fn default_vine_key_file() -> String {
     "vine-forwarding.key".to_string()
@@ -108,11 +102,7 @@ pub struct ServerConfig {
     /// Graceful shutdown timeout in seconds to wait for active connections to close
     #[serde(default = "default_shutdown_timeout")]
     pub shutdown_timeout_secs: u64,
-    /// Shared secret for velocity backends without their own `secret`
-    #[serde(default = "default_forwarding_secret_file")]
-    pub forwarding_secret_file: String,
-    /// Signing key for vine backends without their own `secret`, kept apart from the velocity
-    /// secret so velocity backends cannot sign for vine ones
+    /// Signing key for vine backends without their own `secret`
     #[serde(default = "default_vine_key_file")]
     pub vine_key_file: String,
     /// Require 1.19-1.19.2 clients to present a Mojang-signed chat key in online mode
@@ -178,10 +168,6 @@ pub struct RoutingConfig {
 pub enum ForwardingMode {
     /// Plain connection without forwarding info (for Vanilla servers in offline-mode)
     None,
-    /// BungeeCord IP forwarding (for Bukkit, Spigot, PaperMC with bungeecord: true)
-    BungeeCord,
-    /// Velocity modern forwarding with HMAC-SHA256 secret (for PaperMC, Purpur, Pumpkin)
-    Velocity,
     /// Vine modern forwarding with Ed25519 asymmetric signatures, timestamp, and challenge nonce (for Pumpkin)
     Vine,
 }
@@ -192,7 +178,7 @@ pub struct BackendConfig {
     pub address: String,
     /// Forwarding mode to use when connecting to this backend
     pub forwarding: ForwardingMode,
-    /// Secret key required if forwarding mode is Velocity
+    /// Signing key for Vine forwarding; falls back to `server.vine_key_file` when unset
     pub secret: Option<String>,
     /// Optional custom 64x64 PNG status icon path for this backend / virtual host
     #[serde(default)]
@@ -209,7 +195,7 @@ impl Default for Config {
             "lobby".to_string(),
             BackendConfig {
                 address: "127.0.0.1:25566".to_string(),
-                forwarding: ForwardingMode::Velocity,
+                forwarding: ForwardingMode::Vine,
                 secret: None,
                 icon_path: None,
                 motd: None,
@@ -219,7 +205,7 @@ impl Default for Config {
             "survival".to_string(),
             BackendConfig {
                 address: "127.0.0.1:25567".to_string(),
-                forwarding: ForwardingMode::BungeeCord,
+                forwarding: ForwardingMode::Vine,
                 secret: None,
                 icon_path: None,
                 motd: None,
@@ -248,7 +234,6 @@ impl Default for Config {
                 compression_threshold: 256,
                 compression_level: 6,
                 shutdown_timeout_secs: 10,
-                forwarding_secret_file: default_forwarding_secret_file(),
                 vine_key_file: default_vine_key_file(),
                 force_key_authentication: true,
                 default_locale: default_locale(),
@@ -290,8 +275,9 @@ pub fn normalize_host(host: &str) -> String {
     host.trim().trim_end_matches('.').to_ascii_lowercase()
 }
 
-fn needs_secret(server: &BackendConfig, mode: ForwardingMode) -> bool {
-    server.forwarding == mode && server.secret.as_deref().is_none_or(|s| s.trim().is_empty())
+fn needs_secret(server: &BackendConfig) -> bool {
+    server.forwarding == ForwardingMode::Vine
+        && server.secret.as_deref().is_none_or(|s| s.trim().is_empty())
 }
 
 fn load_or_create_secret_file(
@@ -341,8 +327,7 @@ impl Config {
         {
             config.server.bind_address = bind.trim().to_string();
         }
-        let env_secret = std::env::var(FORWARDING_SECRET_ENV).ok();
-        config.resolve_forwarding_secret(path.parent().unwrap_or(Path::new("")), env_secret)?;
+        config.resolve_forwarding_secret(path.parent().unwrap_or(Path::new("")))?;
         config.validate()?;
         Ok(config)
     }
@@ -350,65 +335,16 @@ impl Config {
     fn resolve_forwarding_secret(
         &mut self,
         config_dir: &Path,
-        env_secret: Option<String>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let had_velocity_secret = config_dir
-            .join(&self.server.forwarding_secret_file)
-            .exists();
-        let uses_velocity = self
-            .servers
-            .values()
-            .any(|s| needs_secret(s, ForwardingMode::Velocity));
-        if uses_velocity {
-            let secret = match env_secret.as_deref().map(str::trim) {
-                Some(secret) if !secret.is_empty() => secret.to_string(),
-                _ => load_or_create_secret_file(
-                    &config_dir.join(&self.server.forwarding_secret_file),
-                    "use it as proxies.velocity.secret in each Paper backend",
-                )?,
-            };
-            for server in self
-                .servers
-                .values_mut()
-                .filter(|s| needs_secret(s, ForwardingMode::Velocity))
-            {
-                server.secret = Some(secret.clone());
-            }
+        if !self.servers.values().any(needs_secret) {
+            return Ok(());
         }
-        if self
-            .servers
-            .values()
-            .any(|s| needs_secret(s, ForwardingMode::Vine))
-        {
-            let key_path = config_dir.join(&self.server.vine_key_file);
-            // Installs from before the key existed signed with the velocity secret, so their
-            // Pumpkin backends stop accepting players until they get the new public key. A config
-            // cannot tell those apart from a first vine server, so this only says what to check.
-            if !key_path.exists() && had_velocity_secret {
-                tracing::info!(
-                    "Vine forwarding signs with its own key in '{}', not '{}'; a Pumpkin backend \
-                     set up with the old one needs the Vine public key logged below",
-                    key_path.display(),
-                    self.server.forwarding_secret_file
-                );
-            }
-            if !uses_velocity && env_secret.as_deref().is_some_and(|s| !s.trim().is_empty()) {
-                tracing::warn!(
-                    "{FORWARDING_SECRET_ENV} only applies to velocity servers; vine servers use '{}'",
-                    key_path.display()
-                );
-            }
-            let key = load_or_create_secret_file(
-                &key_path,
-                "give each Pumpkin backend the Vine public key logged below",
-            )?;
-            for server in self
-                .servers
-                .values_mut()
-                .filter(|s| needs_secret(s, ForwardingMode::Vine))
-            {
-                server.secret = Some(key.clone());
-            }
+        let key = load_or_create_secret_file(
+            &config_dir.join(&self.server.vine_key_file),
+            "give each Pumpkin backend the Vine public key logged below",
+        )?;
+        for server in self.servers.values_mut().filter(|s| needs_secret(s)) {
+            server.secret = Some(key.clone());
         }
         Ok(())
     }
@@ -472,22 +408,9 @@ impl Config {
             }
         }
         for (name, server) in &self.servers {
-            if !matches!(
-                server.forwarding,
-                ForwardingMode::Velocity | ForwardingMode::Vine
-            ) {
-                continue;
-            }
-            let secret = server.secret.as_deref().map(str::trim).unwrap_or_default();
-            if secret.is_empty() {
+            if needs_secret(server) {
                 return Err(format!(
-                    "server '{name}' uses {:?} forwarding but has no secret configured",
-                    server.forwarding
-                ));
-            }
-            if secret == LEGACY_PLACEHOLDER_SECRET {
-                return Err(format!(
-                    "server '{name}' still uses the default placeholder forwarding secret; replace it with a random value"
+                    "server '{name}' uses vine forwarding but has no secret configured"
                 ));
             }
         }
@@ -500,16 +423,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_shared_secret_file_is_generated_once() {
+    fn test_vine_key_file_is_generated_once() {
         let dir = tempfile::tempdir().unwrap();
         let mut a = Config::default();
-        a.resolve_forwarding_secret(dir.path(), None).unwrap();
+        a.resolve_forwarding_secret(dir.path()).unwrap();
         assert!(a.validate().is_ok());
 
-        let path = dir.path().join("forwarding.secret");
-        let secret = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(secret.len(), 64);
-        assert_eq!(a.servers["lobby"].secret.as_deref(), Some(secret.as_str()));
+        let path = dir.path().join("vine-forwarding.key");
+        let key = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(key.len(), 64);
+        assert_eq!(a.servers["lobby"].secret.as_deref(), Some(key.as_str()));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -518,24 +441,21 @@ mod tests {
         }
 
         let mut b = Config::default();
-        b.resolve_forwarding_secret(dir.path(), None).unwrap();
+        b.resolve_forwarding_secret(dir.path()).unwrap();
         assert_eq!(b.servers["lobby"].secret, a.servers["lobby"].secret);
     }
 
     #[test]
-    fn test_validate_rejects_placeholder_and_missing_secrets() {
+    fn test_validate_rejects_missing_secrets() {
         let mut config = Config::default();
-        config.servers.get_mut("lobby").unwrap().secret =
-            Some(LEGACY_PLACEHOLDER_SECRET.to_string());
-        assert!(config.validate().is_err());
-
         config.servers.get_mut("lobby").unwrap().secret = Some("  ".to_string());
         assert!(config.validate().is_err());
 
         config.servers.get_mut("lobby").unwrap().secret = None;
         assert!(config.validate().is_err());
 
-        config.servers.get_mut("lobby").unwrap().forwarding = ForwardingMode::None;
+        config.servers.get_mut("lobby").unwrap().secret = Some("k".to_string());
+        config.servers.get_mut("survival").unwrap().forwarding = ForwardingMode::None;
         assert!(config.validate().is_ok());
     }
 }
