@@ -54,6 +54,31 @@ pub struct Config {
     pub maintenance: MaintenanceConfig,
     #[serde(default)]
     pub whitelist: WhitelistConfig,
+    #[serde(default)]
+    pub metrics: MetricsConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MetricsConfig {
+    /// Serve Prometheus metrics over HTTP at /metrics
+    #[serde(default)]
+    pub enabled: bool,
+    /// Keep this on a private address, the endpoint has no authentication
+    #[serde(default = "default_metrics_address")]
+    pub bind_address: String,
+}
+
+fn default_metrics_address() -> String {
+    "127.0.0.1:9225".to_string()
+}
+
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bind_address: default_metrics_address(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -360,6 +385,7 @@ impl Default for Config {
             health: HealthConfig::default(),
             maintenance: MaintenanceConfig::default(),
             whitelist: WhitelistConfig::default(),
+            metrics: MetricsConfig::default(),
         }
     }
 }
@@ -476,6 +502,9 @@ impl Config {
         }
         if differs(&self.plugins, &other.plugins) {
             changed.push("plugins");
+        }
+        if differs(&self.metrics, &other.metrics) {
+            changed.push("metrics");
         }
         changed
     }

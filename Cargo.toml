@@ -90,6 +90,9 @@ base64.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [profile.release]
 lto = true
 codegen-units = 1

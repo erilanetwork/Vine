@@ -4,6 +4,7 @@ use vine_config::{Config, SharedConfig};
 use vine_moderation::Moderation;
 
 use crate::health::HealthRegistry;
+use crate::metrics::Metrics;
 use crate::queue::QueueManager;
 
 /// The proxy wide state that commands, plugins and connections share. Everything here can
@@ -13,6 +14,7 @@ pub struct ProxyServices {
     pub health: HealthRegistry,
     pub moderation: Moderation,
     pub queue: QueueManager,
+    pub metrics: Metrics,
 }
 
 impl ProxyServices {
@@ -22,6 +24,7 @@ impl ProxyServices {
             health: HealthRegistry::default(),
             moderation,
             queue: QueueManager::default(),
+            metrics: Metrics::default(),
         }
     }
 

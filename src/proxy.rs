@@ -18,6 +18,7 @@ use vine_config::{Config, ForwardingMode, SharedConfig};
 use vine_i18n::translate;
 use vine_moderation::Moderation;
 use vine_plugin::command::{CommandDispatcher, CommandSender, ProxyCommandSource};
+use vine_plugin::metrics::Metrics;
 use vine_plugin::queue::spawn_queue;
 use vine_plugin::services::ProxyServices;
 use vine_plugin::session::{PlayerAction, SessionManager, send_reliably};
@@ -158,6 +159,27 @@ impl ProxyServer {
         self.spawn_reload_watcher();
         let health_checks = spawn_health_checks(self.services.clone());
         let queue = spawn_queue(self.services.clone(), self.session_manager.clone());
+        let metrics = if self.config.metrics.enabled {
+            match crate::metrics::serve(
+                &self.config.metrics.bind_address,
+                self.services.clone(),
+                self.session_manager.clone(),
+                self.plugin_manager.clone(),
+            )
+            .await
+            {
+                Ok(task) => Some(task),
+                Err(e) => {
+                    error!(
+                        "Failed to serve metrics on {}: {}",
+                        self.config.metrics.bind_address, e
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         if self.config.plugins.enabled {
             debug!(
@@ -186,6 +208,7 @@ impl ProxyServer {
                 accept_res = listener.accept() => {
                     match accept_res {
                         Ok((stream, peer_addr)) => {
+                            Metrics::inc(&self.services.metrics.connections);
                             let config = self.services.config();
                             let keystore = self.keystore.clone();
                             let authenticator = self.authenticator.clone();
@@ -238,6 +261,7 @@ impl ProxyServer {
                                 }
 
                                 if !rate_limiter.check_connection(&effective_addr.ip()) {
+                                    Metrics::inc(&services.metrics.rate_limited);
                                     warn!("[{}] Dropped connection: Rate limit exceeded", effective_addr);
                                     return;
                                 }
@@ -273,6 +297,9 @@ impl ProxyServer {
 
         health_checks.abort();
         queue.abort();
+        if let Some(metrics) = metrics {
+            metrics.abort();
+        }
         self.disconnect_players().await;
 
         if self.config.plugins.enabled {

@@ -20,6 +20,7 @@ use vine_i18n::translate;
 use vine_network::PrefixedRead;
 use vine_plugin::command::CommandDispatcher;
 use vine_plugin::command::moderation::{MAINTENANCE_BYPASS, WHITELIST_BYPASS, ban_message};
+use vine_plugin::metrics::Metrics;
 use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerLoginEvent, PlayerPreLoginEvent, ProxyPingEvent,
@@ -174,6 +175,7 @@ impl ClientHandler {
             .map_err(|_| ClientError::Timeout)??;
 
         if PacketKind::StatusRequest.matches(raw_status.id, client_version) {
+            Metrics::inc(&self.services.metrics.status_pings);
             let maintenance = self.services.config().maintenance.clone();
             let initial_motd = if maintenance.enabled {
                 maintenance.motd.clone()
@@ -329,6 +331,7 @@ impl ClientHandler {
 
         // checked before talking to Mojang, a banned address doesn't get that far
         if let Some(ban) = self.services.moderation.bans.ip_ban(client_ip) {
+            Metrics::inc(&self.services.metrics.logins_rejected);
             info!(
                 "[{}] Rejecting '{}': the address is banned",
                 self.peer_addr, username
@@ -493,6 +496,7 @@ impl ClientHandler {
         if let Some(reason) =
             self.access_denied(&authenticated_player.username, authenticated_player.id)
         {
+            Metrics::inc(&self.services.metrics.logins_rejected);
             Self::kick(&mut writer, client_version, &reason).await?;
             return Ok(());
         }

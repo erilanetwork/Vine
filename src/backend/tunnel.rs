@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
+use vine_plugin::metrics::Metrics;
 
 use bytes::Bytes;
 use tokio::sync::{OwnedSemaphorePermit, mpsc, watch};
@@ -787,6 +788,7 @@ impl Tunnel {
         self.session
             .session_manager
             .update_server(&self.session.username, &target);
+        Metrics::inc(&self.session.services.metrics.server_switches);
         info!(
             "Player '{}' successfully switched to '{}'",
             self.session.username, target

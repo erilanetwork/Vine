@@ -20,6 +20,7 @@ use vine_auth::AuthenticatedPlayer;
 use vine_config::{BackendConfig, NetworkConfig};
 use vine_i18n::translate;
 use vine_plugin::command::CommandDispatcher;
+use vine_plugin::metrics::Metrics;
 use vine_plugin::plugin::PluginManager;
 use vine_plugin::plugin::api::{
     PlayerDisconnectEvent, PlayerJoinEvent, ServerConnectEvent, ServerConnectedEvent,
@@ -233,6 +234,7 @@ impl BackendBridge {
         client_writer.send(success_bytes).await?;
 
         self.online_players.fetch_add(1, Ordering::Relaxed);
+        Metrics::inc(&self.services.metrics.logins);
         info!(
             "Player '{}' is now connected to backend '{}'! Online players: {}",
             self.player.username,
