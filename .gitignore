@@ -12,6 +12,7 @@ perf.data.old
 .pumpkin/
 .vine/
 logs/
+/lang/
 *.log
 crash-reports/
 *.pid
@@ -23,6 +24,8 @@ identity.key
 *.crt
 *.p12
 *.pfx
+*.secret
+
 # === CONFIGURATION & SECRETS ===
 vine.toml
 *.local.toml
