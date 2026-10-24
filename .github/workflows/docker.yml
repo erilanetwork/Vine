@@ -9,11 +9,15 @@ on:
   push:
     branches:
       - "master"
+    tags:
+      - "*"
+      - "!nightly"
+      - "!nightly*"
   workflow_dispatch:
 
 jobs:
   docker-build-deploy:
-    if: github.repository == 'Pumpkin-MC/Vine'
+    if: github.repository == 'erilanetwork/Vine'
     permissions:
       contents: read
       packages: write
@@ -87,7 +91,7 @@ jobs:
           retention-days: 1
 
   merge:
-    if: github.repository == 'Pumpkin-MC/Vine'
+    if: github.repository == 'erilanetwork/Vine'
     permissions:
       contents: read
       packages: write
@@ -132,7 +136,7 @@ jobs:
       # A version is published once; running again for it leaves latest and its tag alone
       - name: Check Published Version
         id: release
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+        if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master')
         run: |
           if docker buildx imagetools inspect "$REGISTRY/$REGISTRY_IMAGE:$VINE_VERSION" > /dev/null 2>&1; then
             echo "Version $VINE_VERSION is already published"
@@ -146,13 +150,13 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}
-          # Pushes only move the branch and commit tags; latest and the version tag are set by a
-          # manual run on master for a version not published yet, so a published version never
-          # changes underneath its users
+          # Branch pushes only move the branch and commit tags; latest and the version tag are set
+          # by a release tag or a manual run on master for a version not published yet, so a
+          # published version never changes underneath its users
           tags: |
             type=ref,event=branch
             type=sha
-            type=raw,value=latest,enable=${{ steps.release.outputs.publish == 'true' }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.publish == 'true' && !contains(env.VINE_VERSION, '-') }}
             type=raw,value=${{ env.VINE_VERSION }},enable=${{ steps.release.outputs.publish == 'true' }}
 
       - name: Create manifest list and push

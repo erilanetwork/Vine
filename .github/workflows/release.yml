@@ -13,13 +13,41 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
+# a second run for the same tag waits instead of racing the first one to the release
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
+  check_version:
+    name: Check tag against Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Only a pushed tag is checked; a manual run may name any tag on purpose
+      - name: Compare versions
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(awk -F '"' '/^version = / {print $2}' Cargo.toml)
+          if [ "${REF_NAME#v}" != "$VERSION" ]; then
+            echo "::error::Tag $REF_NAME does not match version $VERSION in Cargo.toml"
+            exit 1
+          fi
+
   build_release:
     name: Build & Sign Release
+    needs: [check_version]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -153,6 +181,12 @@ jobs:
           fi
           echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
           echo "Determined release tag: ${TAG}"
+          # semver style pre releases like 0.2.0-beta.1 shouldn't become the latest release
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Download prebuilt binary artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -173,6 +207,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: Release ${{ steps.tag.outputs.tag_name }}
+          prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
           files: |
             dist/vine*
             dist/checksums.sha256
