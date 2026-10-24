@@ -1,5 +1,6 @@
 pub mod backend;
 pub mod client;
+pub mod console;
 pub mod proxy;
 pub mod status;
 

@@ -9,6 +9,7 @@ use tracing::{debug, error, info, warn};
 use crate::backend::Router;
 use crate::backend::forwarding::ForwardingHelper;
 use crate::client::ClientHandler;
+use crate::console::Console;
 use crate::network;
 use crate::status::{StatusHandler, StatusIconManager};
 use vine_auth::{Authenticator, KeyStore};
@@ -96,53 +97,20 @@ impl ProxyServer {
     pub async fn run(
         &self,
         shutdown_tx: broadcast::Sender<()>,
+        console: Console,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut shutdown_rx = shutdown_tx.subscribe();
         let bind_addr = &self.config.server.bind_address;
         let listener = network::create_tcp_listener(bind_addr, &self.config.network)?;
 
-        info!("=====================================================");
-        info!("  Vine Minecraft Proxy is listening on {}", bind_addr);
-        info!("  Online mode: {}", self.config.server.online_mode);
-        info!(
-            "  Supported Minecraft versions: {}",
-            vine_protocol::ProtocolVersion::supported_range()
-        );
-        info!("  Networking options:");
-        info!("    - TCP_NODELAY: {}", self.config.network.tcp_nodelay);
-        info!(
-            "    - TCP KeepAlive: {}s",
-            self.config.network.tcp_keepalive_secs
-        );
-        info!(
-            "    - PROXY Protocol v1/v2: {}",
-            self.config.network.proxy_protocol
-        );
-        info!(
-            "    - Handshake timeout: {}s",
-            self.config.network.client_handshake_timeout_secs
-        );
-        info!(
-            "    - Login timeout: {}s",
-            self.config.network.client_login_timeout_secs
-        );
-        info!(
-            "    - Backend connect timeout: {}s",
-            self.config.network.backend_connect_timeout_secs
-        );
-        info!(
-            "    - Compression level: {} (threshold: {} bytes)",
-            self.config.server.compression_level, self.config.server.compression_threshold
-        );
-        info!(
-            "  Configured backend servers: {}",
-            self.config.servers.len()
-        );
         for (name, server) in &self.config.servers {
-            let icon_info = server.icon_path.as_deref().unwrap_or("none");
+            let forwarding = match &server.forwarding {
+                ForwardingMode::None => "no".to_string(),
+                mode => format!("{mode:?}").to_ascii_lowercase(),
+            };
             info!(
-                "    - [{}] {} (Forwarding: {:?}, Icon: {})",
-                name, server.address, server.forwarding, icon_info
+                "Server '{}' at {} ({} forwarding)",
+                name, server.address, forwarding
             );
             if server.forwarding == ForwardingMode::Vine
                 && let Some(key) = server
@@ -150,11 +118,23 @@ impl ProxyServer {
                     .as_deref()
                     .and_then(|secret| ForwardingHelper::get_vine_public_key_hex(secret).ok())
             {
-                info!("      Vine public key: {key} (networking.proxy.vine.public_key on Pumpkin)");
+                info!(
+                    "Vine public key for '{name}': {key} (networking.proxy.vine.public_key on Pumpkin)"
+                );
             }
         }
-        info!("  Default route: '{}'", self.config.routing.default_server);
-        info!("=====================================================");
+        let net = &self.config.network;
+        debug!(
+            "Network: nodelay={} keepalive={}s proxy_protocol={} timeouts handshake={}s login={}s backend={}s, compression level {} above {} bytes",
+            net.tcp_nodelay,
+            net.tcp_keepalive_secs,
+            net.proxy_protocol,
+            net.client_handshake_timeout_secs,
+            net.client_login_timeout_secs,
+            net.backend_connect_timeout_secs,
+            self.config.server.compression_level,
+            self.config.server.compression_threshold
+        );
 
         let trusted_proxies: Arc<Vec<network::IpRange>> = Arc::new(
             self.config
@@ -165,57 +145,18 @@ impl ProxyServer {
                 .collect(),
         );
 
-        let console_dispatcher = self.command_dispatcher.clone();
-        let console_config = self.config.clone();
-        let console_session_manager = self.session_manager.clone();
-        let (stdin_tx, mut stdin_rx) = tokio::sync::mpsc::unbounded_channel();
-
-        std::thread::Builder::new()
-            .name("console-stdin".to_string())
-            .spawn(move || {
-                let stdin = std::io::stdin();
-                let mut line = String::new();
-                while let Ok(n) = stdin.read_line(&mut line) {
-                    if n == 0 {
-                        break;
-                    }
-                    if stdin_tx.send(line.trim().to_string()).is_err() {
-                        break;
-                    }
-                    line.clear();
-                }
-            })
-            .ok();
-
-        let mut stdin_shutdown = shutdown_rx.resubscribe();
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    _ = stdin_shutdown.recv() => break,
-                    cmd_opt = stdin_rx.recv() => {
-                        match cmd_opt {
-                            Some(trimmed) => {
-                                if trimmed.eq_ignore_ascii_case("stop") || trimmed.eq_ignore_ascii_case("end") {
-                                    info!("Shutting down (console)");
-                                    let _ = shutdown_tx.send(());
-                                } else if !trimmed.is_empty() {
-                                    let source = ProxyCommandSource {
-                                        sender: CommandSender::Console,
-                                        config: console_config.clone(),
-                                        session_manager: console_session_manager.clone(),
-                                    };
-                                    console_dispatcher.handle_command(&source, &trimmed);
-                                }
-                            }
-                            None => break,
-                        }
-                    }
-                }
-            }
-        });
+        console.spawn(
+            self.command_dispatcher.clone(),
+            ProxyCommandSource {
+                sender: CommandSender::Console,
+                config: self.config.clone(),
+                session_manager: self.session_manager.clone(),
+            },
+            shutdown_tx,
+        );
 
         if self.config.plugins.enabled {
-            info!(
+            debug!(
                 "Loading plugins from '{}'...",
                 self.config.plugins.plugin_dir
             );
@@ -223,6 +164,18 @@ impl ProxyServer {
                 error!("Failed to load plugins: {}", e);
             }
         }
+
+        info!(
+            "Listening on {} (online mode {}, Minecraft {}, default server '{}')",
+            bind_addr,
+            if self.config.server.online_mode {
+                "on"
+            } else {
+                "off"
+            },
+            vine_protocol::ProtocolVersion::supported_range(),
+            self.config.routing.default_server
+        );
 
         loop {
             tokio::select! {

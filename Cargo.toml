@@ -29,7 +29,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 toml = { version = "1.1", features = ["parse", "display", "serde"] }
 tracing = { version = "0.1" }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "chrono"] }
+rustyline = { version = "19.0", default-features = false }
 thiserror = { version = "2.0" }
 bytes = { version = "1.12" }
 uuid = { version = "1.26", features = ["serde", "v3", "v4"] }
@@ -79,6 +80,7 @@ serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+rustyline.workspace = true
 thiserror.workspace = true
 bytes.workspace = true
 uuid.workspace = true

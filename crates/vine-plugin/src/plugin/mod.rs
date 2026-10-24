@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::command::{CommandSender, ProxyCommandSource};
 use pumpkin_command::ArgumentBuilder;
@@ -241,7 +241,7 @@ impl PluginManager {
                 proxy
                     .command_dispatcher
                     .register_for(cmd_builder, &plugin.metadata.name);
-                info!(
+                debug!(
                     "Registered command '/{}' from plugin '{}'",
                     route, plugin.metadata.name
                 );
@@ -254,7 +254,7 @@ impl PluginManager {
         let _lifecycle = self.lifecycle.lock().await;
         if !self.plugins_dir.exists() {
             let _ = fs::create_dir_all(&self.plugins_dir);
-            info!("Created plugins directory '{}'", self.plugins_dir.display());
+            debug!("Created plugins directory '{}'", self.plugins_dir.display());
             return Ok(0);
         }
 
@@ -271,7 +271,7 @@ impl PluginManager {
         for entry in read_dir.flatten() {
             let path = entry.path();
             if path.is_file() && self.loader.can_load(&path) {
-                info!("Loading plugin from '{}'...", path.display());
+                debug!("Loading plugin from '{}'...", path.display());
                 match self.load_plugin(&path).await {
                     Ok(_) => count += 1,
                     Err(e) => error!("{}", e),
@@ -279,7 +279,9 @@ impl PluginManager {
             }
         }
 
-        info!("Loaded {} plugin(s) in {:?}", count, start_time.elapsed());
+        if count > 0 {
+            info!("Loaded {} plugin(s) in {:?}", count, start_time.elapsed());
+        }
         Ok(count)
     }
 

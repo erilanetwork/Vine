@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use tokio::sync::broadcast;
-use tracing::{error, info};
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::{debug, error, info};
 
 use vine::backend::forwarding::ForwardingHelper;
 use vine::config::{Config, ForwardingMode};
@@ -9,12 +8,7 @@ use vine::proxy::ProxyServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::registry()
-        .with(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,vine=debug")),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let console = vine::console::init();
 
     // `--init` writes the default files and exits without starting the proxy
     let mut args = std::env::args().skip(1).peekable();
@@ -24,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("vine.toml"));
 
-    info!("Loading configuration from '{}'...", config_path.display());
+    debug!("Loading configuration from '{}'...", config_path.display());
     let config = match Config::load_or_create(&config_path) {
         Ok(cfg) => cfg,
         Err(e) => {
@@ -84,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    if let Err(e) = server.run(shutdown_tx).await {
+    if let Err(e) = server.run(shutdown_tx, console).await {
         error!("Fatal proxy error: {}", e);
         std::process::exit(1);
     }

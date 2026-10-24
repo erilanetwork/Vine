@@ -10,7 +10,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use vine_protocol::ProtocolVersion;
@@ -42,7 +42,7 @@ pub struct KeyStore {
 impl KeyStore {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut rng = rand::rng();
-        info!("Generating 1024-bit RSA keypair for proxy encryption...");
+        debug!("Generating 1024-bit RSA keypair for proxy encryption...");
         let private_key = RsaPrivateKey::new(&mut rng, 1024)?;
         let public_key = private_key.to_public_key();
         let public_key_der = public_key
